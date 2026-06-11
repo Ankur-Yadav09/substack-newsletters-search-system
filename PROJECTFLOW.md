@@ -105,3 +105,65 @@ At this time we’ve built the individual components—database schema, RSS pars
 # 6.1 Running the Flow
 You can trigger the RSS ingestion flow using the Makefile command:
 make ingest-rss-articles-flow
+
+# 7. Text Chunking:  Breaking Articles into Searchable Units
+# check src/utils/text_splitter.py
+The default configuration uses 4,000 characters (600 - 800 words) per chunk with 200 character overlap.
+
+# 8. Qdrant Collection: Configuring Hybrid Vector Storage
+With text properly chunked, we need a storage infrastructure that handles both dense and sparse vectors efficiently.
+
+# check src/infrastructure/qdrant/qdrant_vectorstore.py
+
+# 9. Embedding Generation: Dense and Sparse Vectors
+Now that our collection is configured, it’s time to generate embeddings that translate each chunk into a vector representation for search. 
+
+# check src/infrastructure/qdrant/qdrant_vectorstore.py
+
+# 9.1 Dense Embeddings with Fastembed
+The default dense embedding model is BAAI/bge-base-en from Fastembed, producing 768-dimensional vectors.
+
+# 9.2 Sparse Embeddings with BM25
+Sparse embeddings use Qdrant’s BM25 model, generating vectors where non-zero values represent term importance.
+
+# 10. Prefect Orchestration: The Embeddings Ingestion Flow
+With the core ingestion logic implemented in AsyncQdrantVectorStore, we need Prefect orchestration to run it reliably, handle failures gracefully, and support incremental updates.
+
+# 10.1 The Ingestion Task
+The ingest_qdrant task wraps the vectorstore’s ingestion method with Prefect’s retry and logging capabilities:
+# check src/pipelines/tasks/ingest_embeddings.py
+
+# 10.2 The Orchestration Flow
+The qdrant_ingest_flow coordinates the entire process, determining the appropriate date range and invoking the ingestion task.
+# check src/pipelines/flows/embeddings_ingestion_flow.py
+
+# 11. Running the Embeddings Ingestion Pipeline
+
+# 11.1 Initial Collection Setup
+Start by creating the Qdrant collection:
+make qdrant-create-collection
+
+# 11.2 Bulk Ingestion
+Next, ingest all articles from Supabase:
+make ingest-embeddings-flow
+
+# 11.3 Enable Indexing
+After the bulk upload completes, activate HNSW and payload indexes:
+make qdrant-create-indexes
+
+# 11.4 Incremental Updates
+For routine updates after newsletters publish new content, run the flow with date filtering:
+##Ingest only articles published after January 1, 2025
+make ingest-embeddings-flow FROM_DATE=2025-01-01
+
+# 11.5 Combining both Flows: RSS Feed and Embeddings
+we saw the first flow to ingest raw articles into Supabase, and in this lesson, we have seen how to ingest those articles from Supabase to Qdrant. Now we can combine both in a single deployment file using Prefect YAML files.
+# check prefect-cloud.yaml
+
+# 11.6 To deploy flows, use the Makefile commands or the local commands for individual flows available in the README.md file:
+
+# Deploy to Prefect Cloud
+make deploy-cloud-flows
+
+# Deploy to local Prefect server
+make deploy-local-flows
