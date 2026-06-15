@@ -99,7 +99,7 @@ run-api: ## Run FastAPI application
 
 run-gradio: ## Run Gradio application
 	@echo "Starting Gradio application..."
-	uv run frontend/app.py
+	uv run python -m frontend.app
 	@echo "Gradio application stopped."
 
 #################################################################################
