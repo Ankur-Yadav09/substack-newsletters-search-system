@@ -139,6 +139,11 @@ The qdrant_ingest_flow coordinates the entire process, determining the appropria
 
 # 11. Running the Embeddings Ingestion Pipeline
 
+# 11.0 Create Qdrant Cluster First and update the .env
+QDRANT__API_KEY
+QDRANT__URL
+QDRANT__COLLECTION_NAME
+
 # 11.1 Initial Collection Setup
 Start by creating the Qdrant collection:
 make qdrant-create-collection
@@ -149,7 +154,7 @@ make ingest-embeddings-flow
 
 # 11.3 Enable Indexing
 After the bulk upload completes, activate HNSW and payload indexes:
-make qdrant-create-indexes
+make qdrant-create-index
 
 # 11.4 Incremental Updates
 For routine updates after newsletters publish new content, run the flow with date filtering:
@@ -211,3 +216,14 @@ With all these components together, you can now start the backend locally and te
 
 # Run this command to start the application:
 make run-api
+
+# 17. Gradio UI: Making RAG Accessible check frontend/app.py
+While our FastAPI backend provides powerful search and generation capabilities, most users don’t want to craft curl HTTP requests. This is where Gradio provides a nice UI to interact with the application in a user-friendly format.
+
+You can run Gradio using localhost or the cloud URL. For local testing, you need to run both Gradio and FastAPI in two separate terminals. You can use the following make commands:
+
+make run-gradio # Gradio
+make run-api # FastAPI
+
+Then open the default Gradio URL to test the UI
+http://127.0.0.1:7860
