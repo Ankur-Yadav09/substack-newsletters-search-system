@@ -216,3 +216,5 @@ src/configs/feeds_archive.yaml
 deploy_gradio.sh
 frontend/Dockerfile
 frontend/requirements.txt
+.rag/
+.vscode/

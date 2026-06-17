@@ -16,7 +16,6 @@ pydantic-settings
 qdrant-client
 sqlalchemy
 supabase
-# uvloop
 gradio
 markdown
 python-dotenv
