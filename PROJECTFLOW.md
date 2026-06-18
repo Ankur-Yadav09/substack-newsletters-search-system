@@ -227,3 +227,53 @@ make run-api # FastAPI
 
 Then open the default Gradio URL to test the UI
 http://127.0.0.1:7860
+
+# 18. Modernize Python Dependency Management with UV
+# 18.1 created pyproject.toml 
+# 18.2 check uv is install and working
+# 18.3 check uv sync is working
+# 18.4 generate uv.lock using uv lock command.
+
+# 19. Dockerization
+# 19.1 Create .dockerignore.txt
+# 19.2 Create Dockerfile.
+before docker build: 
+you should have docker installed and Docker Desktop open.
+# 19.3 Build docker Image
+# Run:
+docker build -t substack-rag .
+
+# Expected:
+Successfully tagged substack-rag:latest
+or 
+=> unpacking to docker.io/library/substack-rag:latest 
+
+before docker run check the docker image
+with command: docker images
+# 19.4 Run docker Container
+
+# Run:
+docker run --env-file .env -p 8080:8080 substack-rag
+
+after running this command:
+got this error.
+Configuration Error:
+Docker passed inline comments from .env as part of the environment variable value, causing FastEmbed model initialization to fail during application startup.
+means Never pass env like this.
+QDRANT__VECTOR_DIM=768 # 768 # 1024
+this will show error.
+Instead present it like below
+# Embedding dimension
+QDRANT__VECTOR_DIM=768
+Also dont use "" for envrinoment variables.
+# 19.5: Verify
+
+Open:
+
+http://localhost:8080/docs
+
+and
+
+http://localhost:8080/health
+
+
