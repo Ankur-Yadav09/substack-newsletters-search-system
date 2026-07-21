@@ -43,31 +43,31 @@ The Makefile serves as a command center for all common operations—database set
 Rather than remembering complex command sequences with multiple flags and environment variables, you run simple commands like make supabase-create or make ingest-embeddings-flow.
 
 # Supabase
-supabase-create                # Create Supabase database
-supabase-delete                # Delete Supabase database
+make supabase-create                # Create Supabase database
+make supabase-delete                # Delete Supabase database
 
 # Qdrant
-qdrant-create-collection       # Create Qdrant collection
-qdrant-delete-collection       # Delete Qdrant collection
-qdrant-create-index            # Create Qdrant index
-qdrant-ingest-from-sql         # Ingest data from SQL to Qdrant
+make qdrant-create-collection       # Create Qdrant collection
+make qdrant-delete-collection       # Delete Qdrant collection
+make qdrant-create-index            # Create Qdrant index
+make qdrant-ingest-from-sql         # Ingest data from SQL to Qdrant
 
 # Prefect flows
-ingest-rss-articles-flow       # Ingest RSS articles flow
-ingest-embeddings-flow         # Ingest embeddings flow
+make ingest-rss-articles-flow       # Ingest RSS articles flow
+make ingest-embeddings-flow         # Ingest embeddings flow
 
 # Prefect deployment
-deploy-cloud-flows             # Deploy Prefect flows to Prefect Cloud
-deploy-local-flows             # Deploy Prefect flows to Prefect Local Server
+make deploy-cloud-flows             # Deploy Prefect flows to Prefect Cloud
+make deploy-local-flows             # Deploy Prefect flows to Prefect Local Server
 
 # Run services
-run-api                        # Run FastAPI application
-run-gradio                     # Run Gradio application
+make run-api                        # Run FastAPI application
+make run-gradio                     # Run Gradio application
 
 # Quality checks
-all-check                      # Run all: linting, formatting and type checking
-all-fix                        # Run all fix: auto-formatting and linting fixes
-clean                          # Clean up cached generated files
+make all-check                      # Run all: linting, formatting and type checking
+make all-fix                        # Run all fix: auto-formatting and linting fixes
+make clean                          # Clean up cached generated files
 
 # 3. Configuration Management check src/config.py
 
