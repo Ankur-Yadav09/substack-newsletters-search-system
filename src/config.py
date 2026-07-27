@@ -12,13 +12,19 @@ from src.models.article_models import FeedItem
 # Supabase database settings
 # -----------------------------
 class SupabaseDBSettings(BaseModel):
-    table_name: str = Field(default="substack_articles", description="Supabase table name")
+    table_name: str = Field(
+        default="substack_articles", description="Supabase table name"
+    )
     host: str = Field(default="localhost", description="Database host")
     name: str = Field(default="postgres", description="Database name")
     user: str = Field(default="postgres", description="Database user")
-    password: SecretStr = Field(default=SecretStr("password"), description="Database password")
+    password: SecretStr = Field(
+        default=SecretStr("password"), description="Database password"
+    )
     port: int = Field(default=6543, description="Database port")
-    test_database: str = Field(default="substack_test", description="Test database name")
+    test_database: str = Field(
+        default="substack_test", description="Test database name"
+    )
 
 
 # -----------------------------
@@ -28,7 +34,9 @@ class RSSSettings(BaseModel):
     feeds: list[FeedItem] = Field(
         default_factory=list[FeedItem], description="List of RSS feed items"
     )
-    default_start_date: str = Field(default="2025-09-15", description="Default cutoff date")
+    default_start_date: str = Field(
+        default="2025-09-15", description="Default cutoff date"
+    )
     batch_size: int = Field(
         default=5, description="Number of articles to parse and ingest in a batch"
     )
@@ -44,7 +52,9 @@ class QdrantSettings(BaseModel):
     collection_name: str = Field(
         default="substack_collection", description="Qdrant collection name"
     )
-    dense_model_name: str = Field(default="BAAI/bge-base-en", description="Dense model name")
+    dense_model_name: str = Field(
+        default="BAAI/bge-base-en", description="Dense model name"
+    )
     sparse_model_name: str = Field(
         default="Qdrant/bm25", description="Sparse model name"
     )  # prithivida/Splade_PP_en_v1 (larger)
@@ -57,8 +67,12 @@ class QdrantSettings(BaseModel):
     )
     sparse_batch_size: int = Field(default=32, description="Sparse batch size")
     embed_batch_size: int = Field(default=50, description="Dense embedding batch")
-    upsert_batch_size: int = Field(default=50, description="Batch size for Qdrant upsert")
-    max_concurrent: int = Field(default=2, description="Maximum number of concurrent tasks")
+    upsert_batch_size: int = Field(
+        default=50, description="Batch size for Qdrant upsert"
+    )
+    max_concurrent: int = Field(
+        default=2, description="Maximum number of concurrent tasks"
+    )
 
 
 # -----------------------------
@@ -91,8 +105,12 @@ class TextSplitterSettings(BaseModel):
 # -----------------------------
 class JinaSettings(BaseModel):
     api_key: str = Field(default="", description="Jina API key")
-    url: str = Field(default="https://api.jina.ai/v1/embeddings", description="Jina API URL")
-    model: str = Field(default="jina-embeddings-v3", description="Jina model name")  # 1024
+    url: str = Field(
+        default="https://api.jina.ai/v1/embeddings", description="Jina API URL"
+    )
+    model: str = Field(
+        default="jina-embeddings-v3", description="Jina model name"
+    )  # 1024
 
 
 # -----------------------------
@@ -101,7 +119,9 @@ class JinaSettings(BaseModel):
 # BAAI/bge-large-en-v1.5 (1024), BAAI/bge-base-en-v1.5 (768)
 class HuggingFaceSettings(BaseModel):
     api_key: str = Field(default="", description="Hugging Face API key")
-    model: str = Field(default="BAAI/bge-base-en-v1.5", description="Hugging Face model name")
+    model: str = Field(
+        default="BAAI/bge-base-en-v1.5", description="Hugging Face model name"
+    )
 
 
 # -----------------------------
@@ -117,7 +137,9 @@ class OpenAISettings(BaseModel):
 # -----------------------------
 class OpenRouterSettings(BaseModel):
     api_key: str = Field(default="", description="OpenRouter API key")
-    api_url: str = Field(default="https://openrouter.ai/api/v1", description="OpenRouter API URL")
+    api_url: str = Field(
+        default="https://openrouter.ai/api/v1", description="OpenRouter API URL"
+    )
 
 
 # -----------------------------
@@ -125,7 +147,28 @@ class OpenRouterSettings(BaseModel):
 # -----------------------------
 class OpikObservabilitySettings(BaseModel):
     api_key: str = Field(default="", description="Opik Observability API key")
-    project_name: str = Field(default="substack-pipeline", description="Opik project name")
+    project_name: str = Field(
+        default="substack-pipeline", description="Opik project name"
+    )
+    workspace: str = Field(
+        default="default",
+        description=(
+            "Opik/Comet workspace name. The Opik SDK defaults to 'default' if this is "
+            "never set — if your actual Comet workspace has a different name, traces "
+            "and evaluation scores are silently sent to the wrong workspace and never "
+            "show up on your dashboard. Find your real workspace name in the Opik/Comet "
+            "dashboard URL."
+        ),
+    )
+    enable_evaluation: bool = Field(
+        default=False,
+        description=(
+            "Whether to run G-Eval quality scoring (faithfulness/coherence/completeness) "
+            "on OpenRouter answers. Requires OPENAI__API_KEY (used as the LLM judge) and "
+            "adds extra OpenAI API calls per request, run in the background so they don't "
+            "add latency to the response."
+        ),
+    )
 
 
 # -----------------------------

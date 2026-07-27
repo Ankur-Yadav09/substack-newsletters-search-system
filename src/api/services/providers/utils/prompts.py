@@ -34,7 +34,9 @@ that is retrieved from a vector database without relying on outside knowledge or
 
 # Create a new prompt
 prompt = opik.Prompt(
-    name="substack_research_assistant", prompt=PROMPT, metadata={"environment": "development"}
+    name="substack_research_assistant",
+    prompt=PROMPT,
+    metadata={"environment": "development"},
 )
 
 

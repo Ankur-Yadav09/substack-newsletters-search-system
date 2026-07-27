@@ -1,4 +1,11 @@
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, Field, field_validator
+
+from src.api.models.provider_models import LLMProvider
+
+# Reasonable upper bound on requested result count — keeps the Qdrant overfetch
+# multipliers in search_service.py (limit * 100 / limit * 280) from ballooning
+# into unbounded queries.
+MAX_RESULT_LIMIT = 25
 
 
 # -----------------------
@@ -7,10 +14,16 @@ from pydantic import BaseModel, Field
 class SearchResult(BaseModel):
     title: str = Field(default="", description="Title of the article")
     feed_author: str | None = Field(default=None, description="Author of the article")
-    feed_name: str | None = Field(default=None, description="Name of the feed/newsletter")
-    article_author: list[str] | None = Field(default=None, description="List of article authors")
+    feed_name: str | None = Field(
+        default=None, description="Name of the feed/newsletter"
+    )
+    article_author: list[str] | None = Field(
+        default=None, description="List of article authors"
+    )
     url: str | None = Field(default=None, description="URL of the article")
-    chunk_text: str | None = Field(default=None, description="Text content of the article chunk")
+    chunk_text: str | None = Field(
+        default=None, description="Text content of the article chunk"
+    )
     score: float = Field(default=0.0, description="Relevance score of the article")
 
 
@@ -18,14 +31,22 @@ class SearchResult(BaseModel):
 # Unique titles request/response
 # -----------------------
 class UniqueTitleRequest(BaseModel):
-    query_text: str = Field(default="", description="The user query text")
+    query_text: str = Field(
+        default="", max_length=2000, description="The user query text"
+    )
     feed_author: str | None = Field(default=None, description="Filter by author name")
-    feed_name: str | None = Field(default=None, description="Filter by feed/newsletter name")
-    article_author: list[str] | None = Field(default=None, description="List of article authors")
+    feed_name: str | None = Field(
+        default=None, description="Filter by feed/newsletter name"
+    )
+    article_author: list[str] | None = Field(
+        default=None, description="List of article authors"
+    )
     title_keywords: str | None = Field(
         default=None, description="Keywords or phrase to match in title"
     )
-    limit: int = Field(default=5, description="Number of results to return")
+    limit: int = Field(
+        default=5, ge=1, le=MAX_RESULT_LIMIT, description="Number of results to return"
+    )
 
 
 class UniqueTitleResponse(BaseModel):
@@ -38,18 +59,37 @@ class UniqueTitleResponse(BaseModel):
 # Ask request model
 # -----------------------
 class AskRequest(BaseModel):
-    query_text: str = Field(default="", description="The user query text")
+    query_text: str = Field(
+        default="", max_length=2000, description="The user query text"
+    )
     feed_author: str | None = Field(default=None, description="Filter by author name")
-    feed_name: str | None = Field(default=None, description="Filter by feed/newsletter name")
-    article_author: list[str] | None = Field(default=None, description="List of article authors")
+    feed_name: str | None = Field(
+        default=None, description="Filter by feed/newsletter name"
+    )
+    article_author: list[str] | None = Field(
+        default=None, description="List of article authors"
+    )
     title_keywords: str | None = Field(
         default=None, description="Keywords or phrase to match in title"
     )
-    limit: int = Field(default=5, description="Number of results to return")
-    provider: str = Field(default="OpenRouter", description="The provider to use for the query")
-    model: str | None = Field(
-        default=None, description="The specific model to use for the provider, if applicable"
+    limit: int = Field(
+        default=5, ge=1, le=MAX_RESULT_LIMIT, description="Number of results to return"
     )
+    provider: LLMProvider = Field(
+        default=LLMProvider.openrouter, description="The provider to use for the query"
+    )
+    model: str | None = Field(
+        default=None,
+        description="The specific model to use for the provider, if applicable",
+    )
+
+    @field_validator("provider", mode="before")
+    @classmethod
+    def _normalize_provider(cls, value: object) -> object:
+        """Accept provider names case-insensitively (e.g. "OpenRouter", "OPENAI")."""
+        if isinstance(value, str):
+            return value.strip().lower()
+        return value
 
 
 # -----------------------
@@ -57,13 +97,16 @@ class AskRequest(BaseModel):
 # -----------------------
 class AskResponse(BaseModel):
     query: str = Field(default="", description="The original query text")
-    provider: str = Field(default="", description="The LLM provider used for generation")
+    provider: str = Field(
+        default="", description="The LLM provider used for generation"
+    )
     answer: str = Field(default="", description="Generated answer from the LLM")
     sources: list[SearchResult] = Field(
         default_factory=list, description="List of source documents used in generation"
     )
     model: str | None = Field(
-        default=None, description="The specific model used by the provider, if available"
+        default=None,
+        description="The specific model used by the provider, if available",
     )
     finish_reason: str | None = Field(
         default=None, description="The reason why the generation finished, if available"
@@ -79,7 +122,9 @@ class AskStreamingChunk(BaseModel):
 
 class AskStreamingResponse(BaseModel):
     query: str = Field(default="", description="The original query text")
-    provider: str = Field(default="", description="The LLM provider used for generation")
+    provider: str = Field(
+        default="", description="The LLM provider used for generation"
+    )
     chunks: list[AskStreamingChunk] = Field(
         default_factory=list, description="Streamed chunks of generated text"
     )

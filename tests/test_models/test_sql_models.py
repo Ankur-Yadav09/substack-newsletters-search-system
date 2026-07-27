@@ -5,15 +5,13 @@ from sqlalchemy import ARRAY, TIMESTAMP, BigInteger, String, Text, func
 from sqlalchemy.dialects.postgresql import UUID as PG_UUID
 from sqlalchemy.orm import DeclarativeBase, Mapped, mapped_column
 
-from src.config import settings
-
 
 class Base(DeclarativeBase):
     pass
 
 
-class SubstackArticle(Base):
-    __tablename__ = settings.supabase_db.table_name
+class SubstackTestArticle(Base):
+    __tablename__ = "substack_test"
 
     # Primary internal ID
     id: Mapped[int] = mapped_column(BigInteger, primary_key=True, index=True)

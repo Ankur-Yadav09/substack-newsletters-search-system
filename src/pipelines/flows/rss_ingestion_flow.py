@@ -46,7 +46,10 @@ def rss_ingest_flow(article_model: type[SubstackArticle] = SubstackArticle) -> N
             logger.warning("No feeds found in configuration.")
             return
 
-        feeds = [FeedItem(name=f.name, author=f.author, url=f.url) for f in settings.rss.feeds]
+        feeds = [
+            FeedItem(name=f.name, author=f.author, url=f.url)
+            for f in settings.rss.feeds
+        ]
         logger.info(f"🚀 Processing {len(feeds)} feeds concurrently...")
 
         # 1. Fetch articles concurrently
@@ -75,7 +78,9 @@ def rss_ingest_flow(article_model: type[SubstackArticle] = SubstackArticle) -> N
                 count = len(fetched_articles)
                 per_feed_counts[feed.name] = count
                 total_ingested += count
-                logger.info(f"✅ Feed '{feed.name}': {count} articles ready for ingestion")
+                logger.info(
+                    f"✅ Feed '{feed.name}': {count} articles ready for ingestion"
+                )
 
                 task_result = ingest_from_rss.submit(
                     fetched_articles,
@@ -85,7 +90,9 @@ def rss_ingest_flow(article_model: type[SubstackArticle] = SubstackArticle) -> N
                 )
                 results.append(task_result)
             except Exception as e:
-                logger.error(f"❌ Error submitting ingest_from_rss for feed '{feed.name}': {e}")
+                logger.error(
+                    f"❌ Error submitting ingest_from_rss for feed '{feed.name}': {e}"
+                )
                 errors.append(f"Ingest error: {feed.name}")
 
         # 3. Wait for all ingestion tasks

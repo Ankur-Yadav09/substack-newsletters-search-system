@@ -28,6 +28,7 @@ async_openrouter_client = AsyncOpenAI(base_url=openrouter_url, api_key=openroute
 
 os.environ["OPIK_API_KEY"] = settings.opik.api_key
 os.environ["OPIK_PROJECT_NAME"] = settings.opik.project_name
+os.environ["OPIK_WORKSPACE"] = settings.opik.workspace
 
 async_openrouter_client = track_openai(async_openrouter_client)
 

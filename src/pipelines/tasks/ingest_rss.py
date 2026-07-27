@@ -56,7 +56,9 @@ def ingest_from_rss(
                     session.commit()
                 except Exception as e:
                     session.rollback()
-                    logger.error(f"Failed to ingest batch {batch_num} for feed '{feed.name}': {e}")
+                    logger.error(
+                        f"Failed to ingest batch {batch_num} for feed '{feed.name}': {e}"
+                    )
                     errors.append(f"Batch {batch_num}")
                 else:
                     logger.info(
@@ -72,7 +74,9 @@ def ingest_from_rss(
                 session.commit()
             except Exception as e:
                 session.rollback()
-                logger.error(f"Failed to ingest final batch for feed '{feed.name}': {e}")
+                logger.error(
+                    f"Failed to ingest final batch for feed '{feed.name}': {e}"
+                )
                 errors.append("Final batch")
             else:
                 logger.info(

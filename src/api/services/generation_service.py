@@ -4,10 +4,16 @@ import opik
 
 from src.api.models.api_models import SearchResult
 from src.api.models.provider_models import MODEL_REGISTRY
-from src.api.services.providers.huggingface_service import generate_huggingface, stream_huggingface
+from src.api.services.providers.huggingface_service import (
+    generate_huggingface,
+    stream_huggingface,
+)
 from src.api.services.providers.openai_service import generate_openai, stream_openai
-from src.api.services.providers.openrouter_service import generate_openrouter, stream_openrouter
-from src.api.services.providers.utils.evaluation_metrics import evaluate_metrics
+from src.api.services.providers.openrouter_service import (
+    generate_openrouter,
+    stream_openrouter,
+)
+from src.api.services.providers.utils.evaluation_metrics import schedule_evaluation
 from src.api.services.providers.utils.prompts import build_research_prompt
 from src.utils.logger_util import setup_logging
 
@@ -50,10 +56,15 @@ async def generate_answer(
             answer, model_used, finish_reason = await generate_openrouter(
                 prompt, config=config, selected_model=selected_model
             )
-            metrics_results = await evaluate_metrics(answer, prompt)
-            logger.info(f"G-Eval Faithfulness → {metrics_results}")
+            # Fire-and-forget: never blocks the response on evaluation scoring.
+            context_chunks = [r.chunk_text for r in contexts if r.chunk_text]
+            schedule_evaluation(
+                query=query, output=answer, context_chunks=context_chunks
+            )
         except Exception as e:
-            logger.error(f"Error occurred while generating answer from {provider_lower}: {e}")
+            logger.error(
+                f"Error occurred while generating answer from {provider_lower}: {e}"
+            )
             raise
 
     elif provider_lower == "huggingface":
@@ -119,8 +130,11 @@ def get_streaming_function(
                     yield chunk
 
                 full_output = "".join(buffer)
-                metrics_results = await evaluate_metrics(full_output, prompt)
-                logger.info(f"Metrics results: {metrics_results}")
+                # Fire-and-forget: runs after the stream ends, never delays chunks.
+                context_chunks = [r.chunk_text for r in contexts if r.chunk_text]
+                schedule_evaluation(
+                    query=query, output=full_output, context_chunks=context_chunks
+                )
 
             except Exception as e:
                 logger.error(f"Error occurred while streaming from {provider}: {e}")

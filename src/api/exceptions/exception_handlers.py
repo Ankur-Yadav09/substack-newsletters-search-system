@@ -8,7 +8,9 @@ from src.utils.logger_util import setup_logging
 logger = setup_logging()
 
 
-async def validation_exception_handler(request: Request, exc: Exception) -> JSONResponse:
+async def validation_exception_handler(
+    request: Request, exc: Exception
+) -> JSONResponse:
     """Handle FastAPI request validation errors.
 
     Args:

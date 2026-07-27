@@ -23,6 +23,7 @@ async_openai_client = AsyncOpenAI(api_key=openai_key)
 
 os.environ["OPIK_API_KEY"] = settings.opik.api_key
 os.environ["OPIK_PROJECT_NAME"] = settings.opik.project_name
+os.environ["OPIK_WORKSPACE"] = settings.opik.workspace
 
 async_openai_client = track_openai(async_openai_client)
 
@@ -51,7 +52,7 @@ async def generate_openai(prompt: str, config: ModelConfig) -> tuple[str, None]:
     #   on their existing frequency in the text so far (helpful if context chunks overlap.)
 
     resp = await async_openai_client.chat.completions.create(
-        model="gpt-4o-mini",
+        model=config.primary_model,
         messages=build_messages(prompt),
         temperature=config.temperature,
         max_completion_tokens=config.max_completion_tokens,

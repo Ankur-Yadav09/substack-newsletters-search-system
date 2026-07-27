@@ -129,7 +129,9 @@ class AsyncQdrantVectorStore:
 
         """
         try:
-            exists = await self.client.get_collection(collection_name=self.collection_name)
+            exists = await self.client.get_collection(
+                collection_name=self.collection_name
+            )
             if exists:
                 self.logger.info(
                     f"Collection '{self.collection_name}' already exists. Skipping creation."
@@ -149,16 +151,22 @@ class AsyncQdrantVectorStore:
             await self.client.create_collection(
                 collection_name=self.collection_name,
                 vectors_config={
-                    "Dense": models.VectorParams(size=self.embedding_size, distance=Distance.COSINE)
+                    "Dense": models.VectorParams(
+                        size=self.embedding_size, distance=Distance.COSINE
+                    )
                 },
                 sparse_vectors_config=self.sparse_vectors_config,
                 quantization_config=self.quantization_config,
                 hnsw_config=models.HnswConfigDiff(m=0),
                 optimizers_config=models.OptimizersConfigDiff(indexing_threshold=0),
             )
-            self.logger.info(f"Collection '{self.collection_name}' created successfully.")
+            self.logger.info(
+                f"Collection '{self.collection_name}' created successfully."
+            )
         except Exception as e:
-            self.logger.error(f"Failed to create collection '{self.collection_name}': {e}")
+            self.logger.error(
+                f"Failed to create collection '{self.collection_name}': {e}"
+            )
             raise RuntimeError("Error creating Qdrant collection") from e
 
     async def delete_collection(self) -> None:
@@ -180,7 +188,9 @@ class AsyncQdrantVectorStore:
             f"'{self.collection_name}'? Type 'YES' to confirm: "
         )
         if confirm != "YES":
-            self.logger.info(f"Deletion of collection '{self.collection_name}' canceled by user.")
+            self.logger.info(
+                f"Deletion of collection '{self.collection_name}' canceled by user."
+            )
             return
 
         try:
@@ -188,7 +198,9 @@ class AsyncQdrantVectorStore:
             await self.client.delete_collection(collection_name=self.collection_name)
             self.logger.info(f"Qdrant collection '{self.collection_name}' deleted.")
         except Exception as e:
-            self.logger.error(f"Failed to delete collection '{self.collection_name}': {e}")
+            self.logger.error(
+                f"Failed to delete collection '{self.collection_name}': {e}"
+            )
             raise RuntimeError("Error deleting Qdrant collection") from e
 
     # -------------------------------
@@ -219,7 +231,9 @@ class AsyncQdrantVectorStore:
             await self.client.update_collection(
                 collection_name=self.collection_name,
                 vectors_config={
-                    "Dense": models.VectorParamsDiff(hnsw_config=models.HnswConfigDiff(m=m))
+                    "Dense": models.VectorParamsDiff(
+                        hnsw_config=models.HnswConfigDiff(m=m)
+                    )
                 },
                 hnsw_config=models.HnswConfigDiff(m=m),
                 optimizers_config=models.OptimizersConfigDiff(
@@ -228,7 +242,9 @@ class AsyncQdrantVectorStore:
             )
             self.logger.info(f"HNSW enabled for collection '{self.collection_name}'")
         except Exception as e:
-            self.logger.error(f"Failed to enable HNSW for collection '{self.collection_name}': {e}")
+            self.logger.error(
+                f"Failed to enable HNSW for collection '{self.collection_name}': {e}"
+            )
             raise RuntimeError("Error enabling HNSW indexing") from e
 
     # -----------------------
@@ -250,7 +266,9 @@ class AsyncQdrantVectorStore:
             await self.client.create_payload_index(
                 collection_name=self.collection_name,
                 field_name="feed_author",
-                field_schema=models.KeywordIndexParams(type=models.KeywordIndexType.KEYWORD),
+                field_schema=models.KeywordIndexParams(
+                    type=models.KeywordIndexType.KEYWORD
+                ),
             )
             self.logger.info(f"feed_author index created for '{self.collection_name}'")
         except Exception as e:
@@ -269,13 +287,19 @@ class AsyncQdrantVectorStore:
 
         """
         try:
-            self.logger.info(f"Creating article_authors index for '{self.collection_name}'")
+            self.logger.info(
+                f"Creating article_authors index for '{self.collection_name}'"
+            )
             await self.client.create_payload_index(
                 collection_name=self.collection_name,
                 field_name="article_authors",
-                field_schema=models.KeywordIndexParams(type=models.KeywordIndexType.KEYWORD),
+                field_schema=models.KeywordIndexParams(
+                    type=models.KeywordIndexType.KEYWORD
+                ),
             )
-            self.logger.info(f"article_authors index created for '{self.collection_name}'")
+            self.logger.info(
+                f"article_authors index created for '{self.collection_name}'"
+            )
         except Exception as e:
             self.logger.error(f"Failed to create article_authors index: {e}")
             raise RuntimeError("Error creating article_authors index") from e
@@ -296,7 +320,9 @@ class AsyncQdrantVectorStore:
             await self.client.create_payload_index(
                 collection_name=self.collection_name,
                 field_name="feed_name",
-                field_schema=models.KeywordIndexParams(type=models.KeywordIndexType.KEYWORD),
+                field_schema=models.KeywordIndexParams(
+                    type=models.KeywordIndexType.KEYWORD
+                ),
             )
             self.logger.info(f"feed_name index created for '{self.collection_name}'")
         except Exception as e:
@@ -437,7 +463,9 @@ class AsyncQdrantVectorStore:
         try:
             return [
                 SparseVector(indices=se.indices.tolist(), values=se.values.tolist())
-                for se in self.sparse_model.embed(texts, batch_size=self.sparse_batch_size)
+                for se in self.sparse_model.embed(
+                    texts, batch_size=self.sparse_batch_size
+                )
             ]
         except Exception as e:
             self.logger.error(f"Failed to generate sparse vectors: {e}")
@@ -497,7 +525,9 @@ class AsyncQdrantVectorStore:
         """
         try:
             # Run embeddings concurrently in threads
-            dense_task = asyncio.to_thread(self.dense_vectors, texts)  # use dense_vectors() now
+            dense_task = asyncio.to_thread(
+                self.dense_vectors, texts
+            )  # use dense_vectors() now
             sparse_task = asyncio.to_thread(
                 self.sparse_model.embed, texts, batch_size=self.sparse_batch_size
             )
@@ -505,7 +535,8 @@ class AsyncQdrantVectorStore:
 
             # Convert to upsert-friendly format
             dense_vecs = [
-                vec.tolist() if isinstance(vec, np.ndarray) else vec for vec in dense_result
+                vec.tolist() if isinstance(vec, np.ndarray) else vec
+                for vec in dense_result
             ]
             sparse_vecs = [
                 SparseVector(indices=se.indices.tolist(), values=se.values.tolist())
@@ -541,7 +572,9 @@ class AsyncQdrantVectorStore:
         try:
             offset = 0
             while True:
-                query = session.query(SubstackArticle).order_by(SubstackArticle.published_at)
+                query = session.query(SubstackArticle).order_by(
+                    SubstackArticle.published_at
+                )
                 if from_date:
                     query = query.filter(SubstackArticle.published_at >= from_date)
                 articles = query.offset(offset).limit(self.article_batch_size).all()
@@ -553,7 +586,9 @@ class AsyncQdrantVectorStore:
             self.logger.error(f"Failed to fetch article batch: {e}")
             raise
 
-    async def ingest_from_sql(self, session: Session, from_date: datetime | None = None):
+    async def ingest_from_sql(
+        self, session: Session, from_date: datetime | None = None
+    ):
         """Ingest articles from SQL database into Qdrant vector store.
 
         Fetches articles in batches, generates embeddings, and upserts them to Qdrant.
@@ -582,7 +617,9 @@ class AsyncQdrantVectorStore:
             total_chunks = 0
             start_time = time.time()  # cumulative start time
 
-            async for articles in self._article_batch_generator(session, from_date=from_date):
+            async for articles in self._article_batch_generator(
+                session, from_date=from_date
+            ):
                 all_chunks, all_ids, all_payloads = [], [], []
 
                 for article in articles:
@@ -590,7 +627,9 @@ class AsyncQdrantVectorStore:
                     ids = [
                         str(
                             uuid.UUID(
-                                hashlib.sha256(f"{article.url}_{chunk}".encode()).hexdigest()[:32]
+                                hashlib.sha256(
+                                    f"{article.url}_{chunk}".encode()
+                                ).hexdigest()[:32]
                             )
                         )
                         for chunk in chunks
@@ -617,11 +656,15 @@ class AsyncQdrantVectorStore:
                     existing_ids = {p.id for p in existing_points}
 
                     new_chunks = [
-                        c for c, id_ in zip(chunks, ids, strict=False) if id_ not in existing_ids
+                        c
+                        for c, id_ in zip(chunks, ids, strict=False)
+                        if id_ not in existing_ids
                     ]
                     new_ids = [id_ for id_ in ids if id_ not in existing_ids]
                     new_payloads = [
-                        p for p, id_ in zip(payloads, ids, strict=False) if id_ not in existing_ids
+                        p
+                        for p, id_ in zip(payloads, ids, strict=False)
+                        if id_ not in existing_ids
                     ]
 
                     self.logger.info(
@@ -639,7 +682,9 @@ class AsyncQdrantVectorStore:
                 # -------------------------------
                 for start in range(0, len(all_chunks), self.upsert_batch_size):
                     sub_chunks = all_chunks[start : start + self.upsert_batch_size]
-                    sub_ids: list[int | str] = all_ids[start : start + self.upsert_batch_size]  # type: ignore
+                    sub_ids: list[int | str] = all_ids[
+                        start : start + self.upsert_batch_size
+                    ]  # type: ignore
                     sub_payloads = all_payloads[start : start + self.upsert_batch_size]
 
                     batch_start_time = time.time()  # start time for this batch
@@ -661,11 +706,15 @@ class AsyncQdrantVectorStore:
                     # Throughput logging
                     # -------------------------------
                     batch_elapsed = time.time() - batch_start_time
-                    batch_speed = len(sub_chunks) / batch_elapsed if batch_elapsed > 0 else 0
+                    batch_speed = (
+                        len(sub_chunks) / batch_elapsed if batch_elapsed > 0 else 0
+                    )
 
                     cumulative_elapsed = time.time() - start_time
                     cumulative_speed = (
-                        total_chunks / cumulative_elapsed if cumulative_elapsed > 0 else 0
+                        total_chunks / cumulative_elapsed
+                        if cumulative_elapsed > 0
+                        else 0
                     )
                     self.log_batch_status(
                         action="Batch ingested",

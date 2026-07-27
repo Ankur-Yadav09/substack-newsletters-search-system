@@ -19,6 +19,10 @@ class ArticleItem(BaseModel):
     title: str = Field(default="", description="Title of the article")
     url: str = Field(default="", description="URL of the article")
     content: str = Field(default="", description="Content of the article")
-    article_authors: list[str] = Field(default_factory=list, description="Authors of the article")
-    published_at: str | None = Field(default=None, description="Publication date of the article")
+    article_authors: list[str] = Field(
+        default_factory=list, description="Authors of the article"
+    )
+    published_at: str | None = Field(
+        default=None, description="Publication date of the article"
+    )
     # cover_image: str | None = None

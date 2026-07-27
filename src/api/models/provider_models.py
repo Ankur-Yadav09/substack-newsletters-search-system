@@ -8,12 +8,20 @@ class ProviderSort(str, Enum):
     latency = "latency"
 
 
+# Supported LLM providers — kept in sync with MODEL_REGISTRY's keys below
+class LLMProvider(str, Enum):
+    openrouter = "openrouter"
+    openai = "openai"
+    huggingface = "huggingface"
+
+
 class ModelConfig(BaseModel):
     # The "entry point" model — required by OpenRouter API
     primary_model: str = Field(default="", description="The initial model requested")
     # Optional fallback / routing models
     candidate_models: list[str] = Field(
-        default_factory=list, description="List of candidate models for fallback or routing"
+        default_factory=list,
+        description="List of candidate models for fallback or routing",
     )
     provider_sort: ProviderSort = Field(
         default=ProviderSort.latency, description="How to sort candidate models"
@@ -66,7 +74,7 @@ MODEL_REGISTRY = ModelRegistry(
                 "nvidia/nemotron-nano-9b-v2:free",
             ],
         ),
-        # "openai": ModelConfig(primary_model="gpt-4o-mini"),
+        "openai": ModelConfig(primary_model="gpt-4o-mini"),
         "huggingface": ModelConfig(primary_model="deepseek-ai/DeepSeek-R1"),
     }
 )

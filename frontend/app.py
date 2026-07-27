@@ -27,7 +27,9 @@ def load_feeds():
     Returns:
         list: List of feeds with their details.
     """
-    feeds_path = os.path.join(os.path.dirname(__file__), "../src/configs/feeds_rss.yaml")
+    feeds_path = os.path.join(
+        os.path.dirname(__file__), "../src/configs/feeds_rss.yaml"
+    )
     with open(feeds_path) as f:
         feeds_yaml = yaml.safe_load(f)
     return feeds_yaml.get("feeds", [])
@@ -125,7 +127,24 @@ def get_models_for_provider(provider):
 # -----------------------
 # Gradio interface functions
 # -----------------------
-def handle_search_articles(query_text, feed_name, feed_author, title_keywords, limit):
+def parse_authors(article_author_text):
+    """
+    Parse a comma-separated author string into a list of trimmed author names.
+
+    Args:
+        article_author_text (str): Comma-separated author names,
+            e.g. "Jane Doe, John Smith".
+    Returns:
+        list[str] | None: List of author names, or None if the input is empty.
+    """
+    if not article_author_text or not article_author_text.strip():
+        return None
+    return [a.strip() for a in article_author_text.split(",") if a.strip()]
+
+
+def handle_search_articles(
+    query_text, feed_name, feed_author, article_author, title_keywords, limit
+):
     """
     Handle article search
 
@@ -133,6 +152,7 @@ def handle_search_articles(query_text, feed_name, feed_author, title_keywords, l
         query_text (str): The text to search for in article titles.
         feed_name (str): The name of the feed to filter articles by.
         feed_author (str): The author of the feed to filter articles by.
+        article_author (str): Comma-separated article author names to filter by.
         title_keywords (str): Keywords to search for in article titles.
         limit (int): The maximum number of articles to return.
     Returns:
@@ -147,6 +167,7 @@ def handle_search_articles(query_text, feed_name, feed_author, title_keywords, l
         "query_text": query_text.strip().lower(),
         "feed_author": feed_author.strip() if feed_author else "",
         "feed_name": feed_name.strip() if feed_name else "",
+        "article_author": parse_authors(article_author),
         "limit": limit,
         "title_keywords": title_keywords.strip().lower() if title_keywords else None,
     }
@@ -186,6 +207,7 @@ def handle_ai_question_streaming(
     query_text,
     feed_name,
     feed_author,
+    article_author,
     limit,
     provider,
     model,
@@ -197,6 +219,7 @@ def handle_ai_question_streaming(
         query_text (str): The question to ask the AI.
         feed_name (str): The name of the feed to filter articles by.
         feed_author (str): The author of the feed to filter articles by.
+        article_author (str): Comma-separated article author names to filter by.
         limit (int): The maximum number of articles to consider.
         provider (str): The LLM provider to use.
         model (str): The specific model to use from the provider.
@@ -215,6 +238,7 @@ def handle_ai_question_streaming(
         "query_text": query_text.strip().lower(),
         "feed_author": feed_author.strip() if feed_author else "",
         "feed_name": feed_name.strip() if feed_name else "",
+        "article_author": parse_authors(article_author),
         "limit": limit,
         "provider": provider.lower(),
     }
@@ -244,15 +268,11 @@ def handle_ai_question_streaming(
                 yield answer_html, model_info
 
             elif event_type == "truncated":
-                answer_html += (
-                    f"<div style='color:#ff6600; padding:10px; font-weight:bold;'>⚠️ {content}</div>"
-                )
+                answer_html += f"<div style='color:#ff6600; padding:10px; font-weight:bold;'>⚠️ {content}</div>"
                 yield answer_html, model_info
 
             elif event_type == "error":
-                error_html = (
-                    f"<div style='color:red; padding:10px; font-weight:bold;'>❌ {content}</div>"
-                )
+                error_html = f"<div style='color:red; padding:10px; font-weight:bold;'>❌ {content}</div>"
                 yield error_html, model_info
                 break
 
@@ -261,7 +281,9 @@ def handle_ai_question_streaming(
         yield error_html, model_info
 
 
-def handle_ai_question_non_streaming(query_text, feed_name, feed_author, limit, provider, model):
+def handle_ai_question_non_streaming(
+    query_text, feed_name, feed_author, article_author, limit, provider, model
+):
     """
     Handle AI question without streaming
 
@@ -269,6 +291,7 @@ def handle_ai_question_non_streaming(query_text, feed_name, feed_author, limit, 
         query_text (str): The question to ask the AI.
         feed_name (str): The name of the feed to filter articles by.
         feed_author (str): The author of the feed to filter articles by.
+        article_author (str): Comma-separated article author names to filter by.
         limit (int): The maximum number of articles to consider.
         provider (str): The LLM provider to use.
         model (str): The specific model to use from the provider.
@@ -286,6 +309,7 @@ def handle_ai_question_non_streaming(query_text, feed_name, feed_author, limit, 
         "query_text": query_text.strip().lower(),
         "feed_author": feed_author.strip() if feed_author else "",
         "feed_name": feed_name.strip() if feed_name else "",
+        "article_author": parse_authors(article_author),
         "limit": limit,
         "provider": provider.lower(),
     }
@@ -309,9 +333,7 @@ def handle_ai_question_non_streaming(query_text, feed_name, feed_author, limit, 
             elif event_type == "model":
                 model_info = f"Provider: {provider} | Model: {content}"
             elif event_type == "truncated":
-                answer_html += (
-                    f"<div style='color:#ff6600; padding:10px; font-weight:bold;'>⚠️ {content}</div>"
-                )
+                answer_html += f"<div style='color:#ff6600; padding:10px; font-weight:bold;'>⚠️ {content}</div>"
             elif event_type == "error":
                 return (
                     f"<div style='color:red; padding:10px; font-weight:bold;'>❌ {content}</div>",
@@ -366,12 +388,18 @@ with gr.Blocks(title="Substack Articles LLM Engine", theme=gr.themes.Soft()) as 
 
             # Common filters
             gr.Markdown("### Filters")
-            query_text = gr.Textbox(label="Query", placeholder="Type your query here...", lines=3)
+            query_text = gr.Textbox(
+                label="Query", placeholder="Type your query here...", lines=3
+            )
             feed_author = gr.Dropdown(
                 choices=[""] + feed_authors, label="Author (optional)", value=""
             )
             feed_name = gr.Dropdown(
                 choices=[""] + feed_names, label="Newsletter (optional)", value=""
+            )
+            article_author = gr.Textbox(
+                label="Article Author(s) (optional)",
+                placeholder="Comma-separated names, e.g. Jane Doe, John Smith",
             )
 
             # Conditional fields based on search type
@@ -382,7 +410,12 @@ with gr.Blocks(title="Substack Articles LLM Engine", theme=gr.themes.Soft()) as 
             )
 
             limit = gr.Slider(
-                minimum=1, maximum=20, step=1, label="Number of results", value=5, visible=True
+                minimum=1,
+                maximum=20,
+                step=1,
+                label="Number of results",
+                value=5,
+                visible=True,
             )
 
             # LLM Options (only visible for AI mode)
@@ -493,6 +526,7 @@ with gr.Blocks(title="Substack Articles LLM Engine", theme=gr.themes.Soft()) as 
         query_text,
         feed_name,
         feed_author,
+        article_author,
         title_keywords,
         limit,
         provider,
@@ -506,6 +540,7 @@ with gr.Blocks(title="Substack Articles LLM Engine", theme=gr.themes.Soft()) as 
             query_text (str): The query text
             feed_name (str): The selected feed name
             feed_author (str): The selected feed author
+            article_author (str): Comma-separated article author names to filter by
             title_keywords (str): The title keywords (if applicable)
             limit (int): The number of results to return
             provider (str): The selected LLM provider (if applicable)
@@ -515,18 +550,35 @@ with gr.Blocks(title="Substack Articles LLM Engine", theme=gr.themes.Soft()) as 
         """
         if search_type == "Ask the AI" and streaming_mode == "Streaming":
             yield from handle_ai_question_streaming(
-                query_text, feed_name, feed_author, limit, provider, model
+                query_text,
+                feed_name,
+                feed_author,
+                article_author,
+                limit,
+                provider,
+                model,
             )
         else:
             # For non-streaming cases, just return the regular result
             if search_type == "Search Articles":
                 result = handle_search_articles(
-                    query_text, feed_name, feed_author, title_keywords, limit
+                    query_text,
+                    feed_name,
+                    feed_author,
+                    article_author,
+                    title_keywords,
+                    limit,
                 )
                 yield result, ""
             else:
                 result_html, model_info_text = handle_ai_question_non_streaming(
-                    query_text, feed_name, feed_author, limit, provider, model
+                    query_text,
+                    feed_name,
+                    feed_author,
+                    article_author,
+                    limit,
+                    provider,
+                    model,
                 )
                 yield result_html, model_info_text
 
@@ -539,6 +591,7 @@ with gr.Blocks(title="Substack Articles LLM Engine", theme=gr.themes.Soft()) as 
             query_text,
             feed_name,
             feed_author,
+            article_author,
             title_keywords,
             limit,
             provider,

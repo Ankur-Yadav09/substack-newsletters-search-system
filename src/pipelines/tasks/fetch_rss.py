@@ -61,7 +61,9 @@ def fetch_rss_entries(
 
         for _, item in enumerate(rss_items):
             try:
-                link = item.find("link").get_text(strip=True) if item.find("link") else ""  # type: ignore
+                link = (
+                    item.find("link").get_text(strip=True) if item.find("link") else ""
+                )  # type: ignore
                 if not link or session.query(article_model).filter_by(url=link).first():
                     logger.info(
                         f"Skipping already stored or empty-link article for feed '{feed.name}'"
@@ -69,7 +71,9 @@ def fetch_rss_entries(
                     continue
 
                 title = (
-                    item.find("title").get_text(strip=True) if item.find("title") else "Untitled"  # type: ignore
+                    item.find("title").get_text(strip=True)
+                    if item.find("title")
+                    else "Untitled"  # type: ignore
                 )
 
                 # Prefer full text in <content:encoded>
@@ -86,7 +90,9 @@ def fetch_rss_entries(
                                 a["href"].strip() == link  # type: ignore
                                 and "read more" in a.get_text(strip=True).lower()
                             ):
-                                logger.info(f"Paywalled/truncated article skipped: '{title}'")
+                                logger.info(
+                                    f"Paywalled/truncated article skipped: '{title}'"
+                                )
                                 raise StopIteration  # skip this item
                     except StopIteration:
                         continue
@@ -103,7 +109,9 @@ def fetch_rss_entries(
                             autolinks=True,
                         )
                         content_md = "\n".join(
-                            line.strip() for line in content_md.splitlines() if line.strip()
+                            line.strip()
+                            for line in content_md.splitlines()
+                            if line.strip()
                         )
                     except Exception as e:
                         logger.warning(f"Markdown conversion failed for '{title}': {e}")
@@ -114,10 +122,14 @@ def fetch_rss_entries(
                     continue
 
                 author_elem = item.find("creator") or item.find("dc:creator")  # type: ignore
-                author = author_elem.get_text(strip=True) if author_elem else feed.author
+                author = (
+                    author_elem.get_text(strip=True) if author_elem else feed.author
+                )
 
                 pub_date_elem = item.find("pubDate")  # type: ignore
-                pub_date_str = pub_date_elem.get_text(strip=True) if pub_date_elem else None
+                pub_date_str = (
+                    pub_date_elem.get_text(strip=True) if pub_date_elem else None
+                )
 
                 article_item = ArticleItem(
                     feed_name=feed.name,
@@ -138,7 +150,9 @@ def fetch_rss_entries(
         return items
 
     except Exception as e:
-        logger.error(f"Unexpected error in fetch_rss_entries for feed '{feed.name}': {e}")
+        logger.error(
+            f"Unexpected error in fetch_rss_entries for feed '{feed.name}': {e}"
+        )
         raise
     finally:
         session.close()

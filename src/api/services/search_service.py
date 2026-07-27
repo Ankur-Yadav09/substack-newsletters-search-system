@@ -5,6 +5,7 @@ from qdrant_client.models import (
     Filter,
     Fusion,
     FusionQuery,
+    MatchAny,
     MatchText,
     MatchValue,
     Prefetch,
@@ -23,19 +24,23 @@ async def query_with_filters(
     query_text: str = "",
     feed_author: str | None = None,
     feed_name: str | None = None,
+    article_author: list[str] | None = None,
     title_keywords: str | None = None,
     limit: int = 5,
 ) -> list[SearchResult]:
     """Query the vector store with optional filters and return search results.
 
     Performs a hybrid dense + sparse search on Qdrant and applies filters based
-    on feed author, feed name, and title keywords. Results are deduplicated by point ID.
+    on feed author, feed name, article author(s), and title keywords. Results are
+    deduplicated by point ID.
 
     Args:
         request (Request): FastAPI request object containing the vector store in app.state.
         query_text (str): Text query to search for.
         feed_author (str | None): Optional filter for the feed author.
         feed_name (str | None): Optional filter for the feed name.
+        article_author (list[str] | None): Optional filter matching any of the given
+            article authors against the article_authors payload field.
         title_keywords (str | None): Optional filter for title keywords.
         limit (int): Maximum number of results to return.
 
@@ -51,12 +56,22 @@ async def query_with_filters(
     # Build filter conditions
     conditions: list[FieldCondition] = []
     if feed_author:
-        conditions.append(FieldCondition(key="feed_author", match=MatchValue(value=feed_author)))
+        conditions.append(
+            FieldCondition(key="feed_author", match=MatchValue(value=feed_author))
+        )
     if feed_name:
-        conditions.append(FieldCondition(key="feed_name", match=MatchValue(value=feed_name)))
+        conditions.append(
+            FieldCondition(key="feed_name", match=MatchValue(value=feed_name))
+        )
+    if article_author:
+        conditions.append(
+            FieldCondition(key="article_authors", match=MatchAny(any=article_author))
+        )
     if title_keywords:
         conditions.append(
-            FieldCondition(key="title", match=MatchText(text=title_keywords.strip().lower()))
+            FieldCondition(
+                key="title", match=MatchText(text=title_keywords.strip().lower())
+            )
         )
 
     query_filter = Filter(must=conditions) if conditions else None  # type: ignore
@@ -68,8 +83,18 @@ async def query_with_filters(
         collection_name=vectorstore.collection_name,
         query=FusionQuery(fusion=Fusion.RRF),
         prefetch=[
-            Prefetch(query=dense_vector, using="Dense", limit=fetch_limit, filter=query_filter),
-            Prefetch(query=sparse_vector, using="Sparse", limit=fetch_limit, filter=query_filter),
+            Prefetch(
+                query=dense_vector,
+                using="Dense",
+                limit=fetch_limit,
+                filter=query_filter,
+            ),
+            Prefetch(
+                query=sparse_vector,
+                using="Sparse",
+                limit=fetch_limit,
+                filter=query_filter,
+            ),
         ],
         query_filter=query_filter,
         limit=fetch_limit,
@@ -106,6 +131,7 @@ async def query_unique_titles(
     query_text: str,
     feed_author: str | None = None,
     feed_name: str | None = None,
+    article_author: list[str] | None = None,
     title_keywords: str | None = None,
     limit: int = 5,
 ) -> list[SearchResult]:
@@ -120,6 +146,8 @@ async def query_unique_titles(
         query_text (str): Text query to search for.
         feed_author (str | None): Optional filter for the feed author.
         feed_name (str | None): Optional filter for the feed name.
+        article_author (list[str] | None): Optional filter matching any of the given
+            article authors against the article_authors payload field.
         title_keywords (str | None): Optional filter for title keywords.
         limit (int): Maximum number of unique results to return.
 
@@ -135,12 +163,22 @@ async def query_unique_titles(
     # Build filter conditions
     conditions: list[FieldCondition] = []
     if feed_author:
-        conditions.append(FieldCondition(key="feed_author", match=MatchValue(value=feed_author)))
+        conditions.append(
+            FieldCondition(key="feed_author", match=MatchValue(value=feed_author))
+        )
     if feed_name:
-        conditions.append(FieldCondition(key="feed_name", match=MatchValue(value=feed_name)))
+        conditions.append(
+            FieldCondition(key="feed_name", match=MatchValue(value=feed_name))
+        )
+    if article_author:
+        conditions.append(
+            FieldCondition(key="article_authors", match=MatchAny(any=article_author))
+        )
     if title_keywords:
         conditions.append(
-            FieldCondition(key="title", match=MatchText(text=title_keywords.strip().lower()))
+            FieldCondition(
+                key="title", match=MatchText(text=title_keywords.strip().lower())
+            )
         )
 
     query_filter = Filter(must=conditions) if conditions else None  # type: ignore
@@ -152,8 +190,18 @@ async def query_unique_titles(
         collection_name=vectorstore.collection_name,
         query=FusionQuery(fusion=Fusion.RRF),
         prefetch=[
-            Prefetch(query=dense_vector, using="Dense", limit=fetch_limit, filter=query_filter),
-            Prefetch(query=sparse_vector, using="Sparse", limit=fetch_limit, filter=query_filter),
+            Prefetch(
+                query=dense_vector,
+                using="Dense",
+                limit=fetch_limit,
+                filter=query_filter,
+            ),
+            Prefetch(
+                query=sparse_vector,
+                using="Sparse",
+                limit=fetch_limit,
+                filter=query_filter,
+            ),
         ],
         query_filter=query_filter,
         limit=fetch_limit,
@@ -182,7 +230,9 @@ async def query_unique_titles(
         if len(results) >= limit:
             break
 
-    logger.info(f"Returning {len(results)} unique title results for matching query '{query_text}'")
+    logger.info(
+        f"Returning {len(results)} unique title results for matching query '{query_text}'"
+    )
 
     # logger.info(f"results: {results}")
     return results

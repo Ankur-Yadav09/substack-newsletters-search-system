@@ -31,13 +31,15 @@ def init_engine() -> Engine:
             raise ValueError(
                 "Incomplete database configuration: ensure all Supabase settings are provided"
             )
-        password = quote_plus(db.password.get_secret_value()) # If password contains @ it will cause problem there quote plus will convert @ -> %40
+        password = quote_plus(
+            db.password.get_secret_value()
+        )  # If password contains @ it will cause problem there quote plus will convert @ -> %40
         logger.info(f"Connecting to database {db.name} at {db.host}:{db.port}")
-        engine_url = (
-            f"postgresql://{db.user}:{password}@{db.host}:{db.port}/{db.name}"
-        )
-        
-        safe_url = engine_url.replace(password, "***") # For not showing password in logs
+        engine_url = f"postgresql://{db.user}:{password}@{db.host}:{db.port}/{db.name}"
+
+        safe_url = engine_url.replace(
+            password, "***"
+        )  # For not showing password in logs
         logger.debug(f"Using engine URL: {safe_url}")
 
         # Create the engine with connection pooling options for robustness

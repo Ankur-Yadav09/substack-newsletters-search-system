@@ -47,7 +47,9 @@ class LoggingMiddleware(BaseHTTPMiddleware):
 
         # Exclude sensitive headers from logging
         safe_headers = {
-            k: v for k, v in request.headers.items() if k.lower() not in {"authorization", "cookie"}
+            k: v
+            for k, v in request.headers.items()
+            if k.lower() not in {"authorization", "cookie"}
         }
 
         logger.info(

@@ -34,7 +34,9 @@ async def get_last_successful_run(flow_name: str) -> datetime | None:
     try:
         async with get_client() as client:
             # Step 1: get flows matching the name
-            flows = await client.read_flows(flow_filter=FlowFilter(name=dict(eq_=flow_name)))  # type: ignore
+            flows = await client.read_flows(
+                flow_filter=FlowFilter(name=dict(eq_=flow_name))
+            )  # type: ignore
             logger.debug(f"Flows returned by Prefect API: {flows}")
 
             exact_flow = next((f for f in flows if f.name == flow_name), None)
@@ -46,7 +48,9 @@ async def get_last_successful_run(flow_name: str) -> datetime | None:
 
             # Step 2: get recent completed runs
             flow_runs = await client.read_flow_runs(
-                flow_run_filter=FlowRunFilter(state=dict(type=dict(any_=["COMPLETED"]))),  # type: ignore
+                flow_run_filter=FlowRunFilter(
+                    state=dict(type=dict(any_=["COMPLETED"]))
+                ),  # type: ignore
                 sort=FlowRunSort.START_TIME_DESC,
                 limit=10,
             )
@@ -61,7 +65,9 @@ async def get_last_successful_run(flow_name: str) -> datetime | None:
                 return None
 
             last_run_time = flow_runs[0].start_time
-            logger.info(f"Last completed run for flow '{flow_name}' started at {last_run_time}")
+            logger.info(
+                f"Last completed run for flow '{flow_name}' started at {last_run_time}"
+            )
 
             return last_run_time
 

@@ -86,13 +86,23 @@ app = FastAPI(
 # -----------------------
 
 
-# Log the allowed origins
-allowed_origins = os.getenv("ALLOWED_ORIGINS", "").split(",")
+# Parse allowed origins, dropping blanks so an unset ALLOWED_ORIGINS
+# resolves to [] (no origins allowed) instead of [""] (one invalid entry).
+allowed_origins = [
+    origin.strip()
+    for origin in os.getenv("ALLOWED_ORIGINS", "").split(",")
+    if origin.strip()
+]
 logger.info(f"CORS allowed origins: {allowed_origins}")
+if "*" in allowed_origins:
+    logger.warning(
+        "ALLOWED_ORIGINS includes '*' while allow_credentials=True — browsers reject this "
+        "combination and it should not be used in production."
+    )
 
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=allowed_origins,  # ["*"],  # allowed_origins,
+    allow_origins=allowed_origins,
     allow_credentials=True,
     allow_methods=["GET", "POST", "OPTIONS"],  # only the methods the app uses
     allow_headers=["Authorization", "Content-Type"],  # only headers needed

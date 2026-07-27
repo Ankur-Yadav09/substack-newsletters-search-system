@@ -36,6 +36,7 @@ async def search_unique(request: Request, params: UniqueTitleRequest):
         query_text=params.query_text,
         feed_author=params.feed_author,
         feed_name=params.feed_name,
+        article_author=params.article_author,
         title_keywords=params.title_keywords,
         limit=params.limit,
     )
@@ -64,13 +65,17 @@ async def ask_with_generation(request: Request, ask: AskRequest):
         query_text=ask.query_text,
         feed_author=ask.feed_author,
         feed_name=ask.feed_name,
+        article_author=ask.article_author,
         title_keywords=ask.title_keywords,
         limit=ask.limit,
     )
 
     # Step 2: Generate an answer
     answer_data = await generate_answer(
-        query=ask.query_text, contexts=results, provider=ask.provider, selected_model=ask.model
+        query=ask.query_text,
+        contexts=results,
+        provider=ask.provider,
+        selected_model=ask.model,
     )
 
     return AskResponse(
@@ -105,13 +110,17 @@ async def ask_with_generation_stream(request: Request, ask: AskRequest):
         query_text=ask.query_text,
         feed_author=ask.feed_author,
         feed_name=ask.feed_name,
+        article_author=ask.article_author,
         title_keywords=ask.title_keywords,
         limit=ask.limit,
     )
 
     # Step 2: Get the streaming generator
     stream_func = get_streaming_function(
-        provider=ask.provider, query=ask.query_text, contexts=results, selected_model=ask.model
+        provider=ask.provider,
+        query=ask.query_text,
+        contexts=results,
+        selected_model=ask.model,
     )
 
     # Step 3: Wrap streaming generator
