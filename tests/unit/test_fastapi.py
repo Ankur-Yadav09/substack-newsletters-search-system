@@ -4,7 +4,22 @@ from unittest.mock import AsyncMock, MagicMock, patch
 import pytest
 from httpx import ASGITransport, AsyncClient
 
+from src.api.dependencies import rate_limit, verify_api_key
 from src.api.main import app
+
+
+@pytest.fixture(autouse=True)
+def bypass_auth_and_rate_limit():
+    """These tests exercise route/business logic, not the auth layer itself (see
+    test_dependencies.py for that) — bypass both via FastAPI's dependency_overrides
+    so a missing/placeholder API_SECURITY__API_KEY in the test environment doesn't
+    fail every request here.
+    """
+    app.dependency_overrides[verify_api_key] = lambda: None
+    app.dependency_overrides[rate_limit] = lambda: None
+    yield
+    app.dependency_overrides.pop(verify_api_key, None)
+    app.dependency_overrides.pop(rate_limit, None)
 
 
 def _fake_point(point_id: str, title: str):

@@ -106,6 +106,7 @@ class AsyncQdrantVectorStore:
         self.hf_client = InferenceClient(
             provider="auto",
             api_key=self.hugging_face_settings.api_key,
+            timeout=self.hugging_face_settings.timeout_seconds,
         )
         self.hf_model = self.hugging_face_settings.model
         self.use_hf = False  # Set to True to enable HF integration
@@ -394,7 +395,12 @@ class AsyncQdrantVectorStore:
                 "dimensions": self.embedding_size,
                 "input": texts,
             }
-            response = requests.post(url, headers=headers, json=data)
+            response = requests.post(
+                url,
+                headers=headers,
+                json=data,
+                timeout=self.jina_settings.timeout_seconds,
+            )
             response.raise_for_status()
             return [item["embedding"] for item in response.json().get("data", [])]
         except requests.RequestException as e:

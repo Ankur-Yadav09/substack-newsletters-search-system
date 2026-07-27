@@ -111,6 +111,9 @@ class JinaSettings(BaseModel):
     model: str = Field(
         default="jina-embeddings-v3", description="Jina model name"
     )  # 1024
+    timeout_seconds: float = Field(
+        default=30.0, description="HTTP timeout in seconds for Jina API calls"
+    )
 
 
 # -----------------------------
@@ -122,6 +125,9 @@ class HuggingFaceSettings(BaseModel):
     model: str = Field(
         default="BAAI/bge-base-en-v1.5", description="Hugging Face model name"
     )
+    timeout_seconds: float = Field(
+        default=30.0, description="HTTP timeout in seconds for Hugging Face API calls"
+    )
 
 
 # -----------------------------
@@ -130,6 +136,9 @@ class HuggingFaceSettings(BaseModel):
 class OpenAISettings(BaseModel):
     api_key: str | None = Field(default="", description="OpenAI API key")
     # model: str = Field(default="gpt-4o-mini", description="OpenAI model name")
+    timeout_seconds: float = Field(
+        default=30.0, description="HTTP timeout in seconds for OpenAI API calls"
+    )
 
 
 # -----------------------------
@@ -139,6 +148,9 @@ class OpenRouterSettings(BaseModel):
     api_key: str = Field(default="", description="OpenRouter API key")
     api_url: str = Field(
         default="https://openrouter.ai/api/v1", description="OpenRouter API URL"
+    )
+    timeout_seconds: float = Field(
+        default=30.0, description="HTTP timeout in seconds for OpenRouter API calls"
     )
 
 
@@ -168,6 +180,27 @@ class OpikObservabilitySettings(BaseModel):
             "adds extra OpenAI API calls per request, run in the background so they don't "
             "add latency to the response."
         ),
+    )
+
+
+# -----------------------------
+# API Security Settings
+# -----------------------------
+class APISecuritySettings(BaseModel):
+    api_key: str = Field(
+        default="",
+        description=(
+            "Shared secret required (via the X-API-Key header) to call /search/* "
+            "endpoints. Auth fails closed: if this is empty, every request to a "
+            "protected route is rejected rather than silently allowed through."
+        ),
+    )
+    rate_limit_max_requests: int = Field(
+        default=30,
+        description="Max requests allowed per client IP within rate_limit_window_seconds",
+    )
+    rate_limit_window_seconds: int = Field(
+        default=60, description="Rate limit window size, in seconds"
     )
 
 
@@ -207,6 +240,7 @@ class Settings(BaseSettings):
     openai: OpenAISettings = Field(default_factory=OpenAISettings)
     openrouter: OpenRouterSettings = Field(default_factory=OpenRouterSettings)
     opik: OpikObservabilitySettings = Field(default_factory=OpikObservabilitySettings)
+    api_security: APISecuritySettings = Field(default_factory=APISecuritySettings)
 
     rss_config_yaml_path: str = "src/configs/feeds_rss.yaml"
 

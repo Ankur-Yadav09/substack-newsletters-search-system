@@ -20,7 +20,11 @@ logger = setup_logging()
 
 openrouter_key = settings.openrouter.api_key
 openrouter_url = settings.openrouter.api_url
-async_openrouter_client = AsyncOpenAI(base_url=openrouter_url, api_key=openrouter_key)
+async_openrouter_client = AsyncOpenAI(
+    base_url=openrouter_url,
+    api_key=openrouter_key,
+    timeout=settings.openrouter.timeout_seconds,
+)
 
 # -----------------------
 # Opik Observability

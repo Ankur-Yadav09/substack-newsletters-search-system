@@ -13,7 +13,9 @@ logger = setup_logging()
 # Hugging Face client
 # -----------------------
 hf_key = settings.hugging_face.api_key
-hf_client = AsyncInferenceClient(provider="auto", api_key=hf_key)
+hf_client = AsyncInferenceClient(
+    provider="auto", api_key=hf_key, timeout=settings.hugging_face.timeout_seconds
+)
 
 
 async def generate_huggingface(prompt: str, config: ModelConfig) -> tuple[str, None]:

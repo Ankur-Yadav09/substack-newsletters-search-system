@@ -15,7 +15,9 @@ logger = setup_logging()
 # OpenAI client
 # -----------------------
 openai_key = settings.openai.api_key
-async_openai_client = AsyncOpenAI(api_key=openai_key)
+async_openai_client = AsyncOpenAI(
+    api_key=openai_key, timeout=settings.openai.timeout_seconds
+)
 
 # -----------------------
 # Opik Observability

@@ -19,6 +19,10 @@ load_dotenv()
 
 BACKEND_URL = os.getenv("BACKEND_URL", "http://localhost:8080")
 API_BASE_URL = f"{BACKEND_URL}/search"
+# Must match the backend's API_SECURITY__API_KEY — the backend fails closed (401)
+# without it.
+BACKEND_API_KEY = os.getenv("BACKEND_API_KEY", "")
+API_HEADERS = {"X-API-Key": BACKEND_API_KEY}
 
 
 # Load feeds from YAML
@@ -56,7 +60,9 @@ def fetch_unique_titles(payload):
         Exception: If the API request fails.
     """
     try:
-        resp = requests.post(f"{API_BASE_URL}/unique-titles", json=payload)
+        resp = requests.post(
+            f"{API_BASE_URL}/unique-titles", json=payload, headers=API_HEADERS
+        )
         resp.raise_for_status()
         return resp.json().get("results", [])
     except Exception as e:
@@ -76,7 +82,9 @@ def call_ai(payload, streaming=True):
     answer_text = ""
     try:
         if streaming:
-            with requests.post(endpoint, json=payload, stream=True) as r:
+            with requests.post(
+                endpoint, json=payload, headers=API_HEADERS, stream=True
+            ) as r:
                 r.raise_for_status()
                 for chunk in r.iter_content(chunk_size=None, decode_unicode=True):
                     if not chunk:
@@ -92,7 +100,7 @@ def call_ai(payload, streaming=True):
                         answer_text += chunk
                         yield "text", answer_text
         else:
-            resp = requests.post(endpoint, json=payload)
+            resp = requests.post(endpoint, json=payload, headers=API_HEADERS)
             resp.raise_for_status()
             data = resp.json()
             answer_text = data.get("answer", "")

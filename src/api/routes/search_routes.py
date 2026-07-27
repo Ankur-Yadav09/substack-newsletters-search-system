@@ -1,8 +1,9 @@
 import asyncio
 
-from fastapi import APIRouter, Request
+from fastapi import APIRouter, Depends, Request
 from fastapi.responses import StreamingResponse
 
+from src.api.dependencies import rate_limit, verify_api_key
 from src.api.models.api_models import (
     AskRequest,
     AskResponse,
@@ -14,7 +15,10 @@ from src.api.models.api_models import (
 from src.api.services.generation_service import generate_answer, get_streaming_function
 from src.api.services.search_service import query_unique_titles, query_with_filters
 
-router = APIRouter()
+# API key + rate limiting apply to every route on this router. Deliberately not
+# applied to health_routes.py — container/load-balancer health checks need to hit
+# /health without credentials.
+router = APIRouter(dependencies=[Depends(verify_api_key), Depends(rate_limit)])
 
 
 @router.post("/unique-titles", response_model=UniqueTitleResponse)
