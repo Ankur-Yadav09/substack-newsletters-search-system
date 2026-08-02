@@ -6,6 +6,8 @@ import requests
 import yaml
 from dotenv import load_dotenv
 
+from src.utils.logger_util import setup_logging
+
 try:
     from src.api.models.provider_models import MODEL_REGISTRY
 except ImportError as e:
@@ -13,6 +15,8 @@ except ImportError as e:
         "Could not import MODEL_REGISTRY from src.api.models.provider_models. "
         "Check the path and file existence."
     ) from e
+
+logger = setup_logging()
 
 # Initialize environment variables
 load_dotenv()
@@ -23,6 +27,62 @@ API_BASE_URL = f"{BACKEND_URL}/search"
 # without it.
 BACKEND_API_KEY = os.getenv("BACKEND_API_KEY", "")
 API_HEADERS = {"X-API-Key": BACKEND_API_KEY}
+
+
+def parse_gradio_auth_users(raw: str) -> list[tuple[str, str]] | None:
+    """Parse GRADIO_AUTH_USERS ("user1:pass1,user2:pass2") into gr.Blocks.launch's
+    auth format.
+
+    Authentication here is a single login gate for the whole UI — there is no
+    role/permission tier: any valid username+password pair gets full access to
+    every feature (search, ask-AI, all providers). That's the deliberate
+    authorization model for this app; add per-user roles here if that ever changes.
+
+    Returns None when unset/empty, which launches Gradio with no login required —
+    appropriate for local-only development where the UI isn't reachable by anyone
+    else. Set this before deploying anywhere reachable by other people.
+
+    Args:
+        raw (str): Raw GRADIO_AUTH_USERS env var value.
+
+    Returns:
+        list[tuple[str, str]] | None: (username, password) pairs, or None if no
+            valid credentials were configured.
+
+    """
+    raw = (raw or "").strip()
+    if not raw:
+        return None
+
+    pairs: list[tuple[str, str]] = []
+    for entry in raw.split(","):
+        entry = entry.strip()
+        if not entry:
+            continue
+        if ":" not in entry:
+            logger.warning(
+                f"Skipping malformed GRADIO_AUTH_USERS entry (missing ':'): {entry!r}"
+            )
+            continue
+        username, _, password = entry.partition(":")
+        username, password = username.strip(), password.strip()
+        if not username or not password:
+            logger.warning(
+                f"Skipping malformed GRADIO_AUTH_USERS entry (empty user/pass): {entry!r}"
+            )
+            continue
+        pairs.append((username, password))
+
+    return pairs or None
+
+
+GRADIO_AUTH_USERS = parse_gradio_auth_users(os.getenv("GRADIO_AUTH_USERS", ""))
+if GRADIO_AUTH_USERS is None:
+    logger.warning(
+        "GRADIO_AUTH_USERS is not set - launching with NO login required. Fine for "
+        "local-only use; set it (e.g. 'admin:changeme') before this UI is reachable "
+        "by anyone else."
+    )
 
 
 # Load feeds from YAML
@@ -611,11 +671,13 @@ with gr.Blocks(title="Substack Articles LLM Engine", theme=gr.themes.Soft()) as 
 
 # For local testing
 if __name__ == "__main__":
-    demo.launch()
+    demo.launch(auth=GRADIO_AUTH_USERS)
 
-# # For Google Cloud Run deployment
+# # For a deployed environment (e.g. AWS App Runner) — the platform provides PORT;
+# # GRADIO_AUTH_USERS must be set there for the login to actually be enforced.
 # if __name__ == "__main__":
 #     demo.launch(
+#         auth=GRADIO_AUTH_USERS,
 #         server_name="0.0.0.0",
-#         server_port=int(os.environ.get("PORT", 8080))
+#         server_port=int(os.environ.get("PORT", 8080)),
 #     )
