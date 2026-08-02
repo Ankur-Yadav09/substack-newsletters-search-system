@@ -1,0 +1,160 @@
+# Continuous Integration.
+#
+# Three jobs, two different trust levels:
+#   - lint, test:        always run automatically, need zero secrets (fully mocked).
+#   - integration-test:  manual-only (see its `if:` below), needs real Supabase
+#                        credentials as repo secrets, and is set up so Qdrant/
+#                        OpenRouter/Opik credentials are ALSO available even
+#                        though nothing uses them yet — see that job's comments.
+name: CI
+
+"on":
+  # Lets you manually trigger a run from GitHub's UI: repo -> Actions tab ->
+  # "CI" workflow -> "Run workflow" button. Needed because integration-test
+  # (below) only runs this way, never automatically.
+  workflow_dispatch:
+  # Runs lint + test (not integration-test) on every push straight to main.
+  push:
+    branches: [main]
+  # Runs lint + test (not integration-test) on every PR targeting main, so you
+  # see failures before merging, not after.
+  pull_request:
+    branches: [main]
+
+jobs:
+  # ---------------------------------------------------------------------------
+  # Static checks only — no tests, no external services, fastest job. Mirrors
+  # exactly what `make all-check` runs locally.
+  # ---------------------------------------------------------------------------
+  lint:
+    name: Lint, format, type-check
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Install uv
+        uses: astral-sh/setup-uv@v3
+        with:
+          enable-cache: true
+          cache-dependency-glob: "uv.lock"
+
+      # No separate "set up Python" step: `uv sync` auto-detects the version from
+      # .python-version in this directory and downloads it if needed — same
+      # mechanism `uv` uses locally, so CI can't drift from what you run on your
+      # own machine.
+      - name: Install dependencies
+        run: uv sync --locked
+
+      - name: Ruff check
+        run: uv run ruff check .
+
+      - name: Ruff format check
+        run: uv run ruff format --check .
+
+      - name: Mypy
+        run: uv run mypy
+
+  # ---------------------------------------------------------------------------
+  # Every test that mocks out its external dependencies (Qdrant, LLM providers,
+  # Opik) instead of calling them for real — so this job needs no secrets at
+  # all and can never be blocked by a misconfigured credential.
+  # ---------------------------------------------------------------------------
+  test:
+    name: Tests (fully mocked, no external services required)
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Install uv
+        uses: astral-sh/setup-uv@v3
+        with:
+          enable-cache: true
+          cache-dependency-glob: "uv.lock"
+
+      - name: Install dependencies
+        run: uv sync --locked
+
+      # Excludes tests marked "integration" — those need a live Supabase test
+      # database; see the integration-test job below for those.
+      - name: Run tests
+        run: uv run pytest -m "not integration" -v
+
+  # ---------------------------------------------------------------------------
+  # Tests that hit a real, live service instead of a mock. Deliberately NOT
+  # run automatically (see the `if:` below) — only via the Actions tab's
+  # "Run workflow" button. Change/remove that `if:` line later if you ever
+  # want this to run on every push instead.
+  # ---------------------------------------------------------------------------
+  integration-test:
+    name: Integration tests (live Supabase)
+    # github.event_name tells you what triggered this run of the whole workflow
+    # ("push", "pull_request", or "workflow_dispatch"). Restricting this job to
+    # only the manual-trigger case means: on a normal push/PR this job shows as
+    # "skipped" (gray, doesn't block anything) — lint/test above have no such
+    # condition, so they still run every time regardless.
+    if: github.event_name == 'workflow_dispatch'
+    runs-on: ubuntu-latest
+    env:
+      # --- Actually required today ---
+      # Every test currently marked @pytest.mark.integration only touches
+      # Supabase (test_db_connection.py, test_rss_pipeline.py,
+      # test_fetch_rss_entries.py). These 6 must be set as repo secrets
+      # (Settings > Secrets and variables > Actions, exact names below,
+      # same values as your local .env) or the job fails at the check step.
+      SUPABASE_DB__HOST: ${{ secrets.SUPABASE_DB__HOST }}
+      SUPABASE_DB__NAME: ${{ secrets.SUPABASE_DB__NAME }}
+      SUPABASE_DB__USER: ${{ secrets.SUPABASE_DB__USER }}
+      SUPABASE_DB__PASSWORD: ${{ secrets.SUPABASE_DB__PASSWORD }}
+      SUPABASE_DB__PORT: ${{ secrets.SUPABASE_DB__PORT }}
+      SUPABASE_DB__TABLE_NAME: ${{ secrets.SUPABASE_DB__TABLE_NAME }}
+
+      # --- Reserved for later, not required today ---
+      # No current test needs any of these — they're wired up now so that
+      # if/when you add a test that actually calls a live Qdrant collection,
+      # a real OpenRouter model, or checks something on the Opik dashboard,
+      # it'll already have credentials available with no extra CI setup.
+      # If left unset in GitHub, these are just empty strings — harmless,
+      # since nothing reads them yet. Add the secrets whenever you add a
+      # test that needs them, not before.
+      QDRANT__API_KEY: ${{ secrets.QDRANT__API_KEY }}
+      QDRANT__URL: ${{ secrets.QDRANT__URL }}
+      QDRANT__COLLECTION_NAME: ${{ secrets.QDRANT__COLLECTION_NAME }}
+      OPENROUTER__API_KEY: ${{ secrets.OPENROUTER__API_KEY }}
+      OPENROUTER__API_URL: ${{ secrets.OPENROUTER__API_URL }}
+      OPIK__API_KEY: ${{ secrets.OPIK__API_KEY }}
+      OPIK__PROJECT_NAME: ${{ secrets.OPIK__PROJECT_NAME }}
+      OPIK__WORKSPACE: ${{ secrets.OPIK__WORKSPACE }}
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Install uv
+        uses: astral-sh/setup-uv@v3
+        with:
+          enable-cache: true
+          cache-dependency-glob: "uv.lock"
+
+      - name: Install dependencies
+        run: uv sync --locked
+
+      # Only checks the 6 Supabase variables — those are the only ones any
+      # current test actually needs. Fails with a clear message naming exactly
+      # which secret is missing, instead of a cryptic connection error several
+      # steps later. Deliberately does NOT check Qdrant/OpenRouter/Opik here:
+      # they're allowed to be unset since nothing requires them yet.
+      - name: Check required secrets are set
+        run: |
+          for var in SUPABASE_DB__HOST SUPABASE_DB__NAME SUPABASE_DB__USER SUPABASE_DB__PASSWORD SUPABASE_DB__PORT SUPABASE_DB__TABLE_NAME; do
+            if [ -z "${!var}" ]; then
+              echo "ERROR: $var is not set. Add it under Settings > Secrets and variables > Actions."
+              exit 1
+            fi
+          done
+
+      # These connect to the real Supabase instance configured above, exercising
+      # a separate substack_test table there (auto-created by conftest.py) — the
+      # same live-DB pattern already used when running these tests locally.
+      - name: Run integration tests
+        run: uv run pytest -m integration -v

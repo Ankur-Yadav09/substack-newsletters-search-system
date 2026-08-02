@@ -6,6 +6,7 @@ import uuid
 from collections.abc import AsyncGenerator
 from datetime import datetime
 from functools import partial
+from typing import Any
 
 import numpy as np
 import requests
@@ -389,7 +390,7 @@ class AsyncQdrantVectorStore:
                     "Authorization": f"Bearer {self.jina_settings.api_key}",
                 },
             )
-            data = {
+            data: dict[str, Any] = {
                 "model": f"{self.jina_settings.model}",
                 "task": "retrieval.passage",
                 "dimensions": self.embedding_size,

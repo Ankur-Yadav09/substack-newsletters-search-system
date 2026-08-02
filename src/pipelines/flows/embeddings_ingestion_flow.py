@@ -4,7 +4,14 @@ from datetime import UTC, datetime, timedelta
 
 from dateutil import parser
 from prefect import flow, get_client
-from prefect.client.schemas.filters import FlowFilter, FlowRunFilter
+from prefect.client.schemas.filters import (
+    FlowFilter,
+    FlowFilterName,
+    FlowRunFilter,
+    FlowRunFilterState,
+    FlowRunFilterStateType,
+)
+from prefect.client.schemas.objects import StateType
 from prefect.client.schemas.sorting import FlowRunSort
 
 from src.config import settings
@@ -34,9 +41,14 @@ async def get_last_successful_run(flow_name: str) -> datetime | None:
     try:
         async with get_client() as client:
             # Step 1: get flows matching the name
+            # Note: FlowFilterName has no "eq_" field (only any_/like_) — a raw
+            # dict(eq_=...) here silently produced a no-op filter (pydantic drops
+            # the unrecognized key), so this used to fetch *all* flows rather than
+            # just this one. The exact-match re-filter below masked the effect, but
+            # any_=[flow_name] is what was actually intended.
             flows = await client.read_flows(
-                flow_filter=FlowFilter(name=dict(eq_=flow_name))
-            )  # type: ignore
+                flow_filter=FlowFilter(name=FlowFilterName(any_=[flow_name]))
+            )
             logger.debug(f"Flows returned by Prefect API: {flows}")
 
             exact_flow = next((f for f in flows if f.name == flow_name), None)
@@ -49,8 +61,10 @@ async def get_last_successful_run(flow_name: str) -> datetime | None:
             # Step 2: get recent completed runs
             flow_runs = await client.read_flow_runs(
                 flow_run_filter=FlowRunFilter(
-                    state=dict(type=dict(any_=["COMPLETED"]))
-                ),  # type: ignore
+                    state=FlowRunFilterState(
+                        type=FlowRunFilterStateType(any_=[StateType.COMPLETED])
+                    )
+                ),
                 sort=FlowRunSort.START_TIME_DESC,
                 limit=10,
             )

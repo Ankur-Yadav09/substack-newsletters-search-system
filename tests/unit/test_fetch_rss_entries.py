@@ -11,6 +11,7 @@ from src.pipelines.tasks.fetch_rss import fetch_rss_entries
 
 
 @pytest.mark.unit
+@pytest.mark.integration  # despite living in tests/unit/, this needs a live DB connection
 @responses.activate
 def test_fetch_rss_mocked_feed() -> None:
     """Unit test that fetches a mocked RSS feed instead of hitting the real URL,

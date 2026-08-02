@@ -61,20 +61,16 @@ def fetch_rss_entries(
 
         for _, item in enumerate(rss_items):
             try:
-                link = (
-                    item.find("link").get_text(strip=True) if item.find("link") else ""
-                )  # type: ignore
+                link_elem = item.find("link")
+                link = link_elem.get_text(strip=True) if link_elem else ""
                 if not link or session.query(article_model).filter_by(url=link).first():
                     logger.info(
                         f"Skipping already stored or empty-link article for feed '{feed.name}'"
                     )
                     continue
 
-                title = (
-                    item.find("title").get_text(strip=True)
-                    if item.find("title")
-                    else "Untitled"  # type: ignore
-                )
+                title_elem = item.find("title")
+                title = title_elem.get_text(strip=True) if title_elem else "Untitled"
 
                 # Prefer full text in <content:encoded>
                 content_elem = item.find("content:encoded") or item.find("description")  # type: ignore

@@ -64,3 +64,14 @@ markers = [
     "integration: tests that require a live database or vector store",
 ]
 asyncio_mode = "strict"
+
+[tool.mypy]
+# Default target so bare `mypy`/`make mypy` work, matching what CI runs.
+files = ["src", "frontend"]
+
+[[tool.mypy.overrides]]
+# These third-party libraries have no bundled/published type stubs. Ignoring
+# missing imports for them specifically (not project-wide) is standard practice —
+# installing a stub package for every untyped dependency isn't worth it.
+module = ["yaml", "psutil", "dateutil.*", "markdown"]
+ignore_missing_imports = true

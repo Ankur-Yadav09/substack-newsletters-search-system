@@ -1,3 +1,4 @@
+import pytest
 from loguru import logger
 from sqlalchemy import text
 from sqlalchemy.orm import Session
@@ -7,6 +8,7 @@ from src.utils.logger_util import setup_logging
 setup_logging()
 
 
+@pytest.mark.integration
 def test_connect_to_test_table(db_session: Session) -> None:
     """Test connectivity to the 'substack_test' table and fetch a single row.
 
