@@ -6,6 +6,7 @@ from opik.integrations.openai import track_openai
 
 from src.api.models.provider_models import ModelConfig
 from src.api.services.providers.utils.messages import build_messages
+from src.api.services.providers.utils.retry import retry_openai_call
 from src.config import settings
 from src.utils.logger_util import setup_logging
 
@@ -30,8 +31,13 @@ os.environ["OPIK_WORKSPACE"] = settings.opik.workspace
 async_openai_client = track_openai(async_openai_client)
 
 
+@retry_openai_call
 async def generate_openai(prompt: str, config: ModelConfig) -> tuple[str, None]:
     """Generate a response from OpenAI for a given prompt and model configuration.
+
+    Retries on transient errors (connection drops, timeouts, rate limiting,
+    5xx) with exponential backoff -- see retry.py for exactly which errors
+    qualify.
 
     Args:
         prompt (str): The input prompt.
@@ -70,6 +76,11 @@ async def generate_openai(prompt: str, config: ModelConfig) -> tuple[str, None]:
 
 def stream_openai(prompt: str, config: ModelConfig) -> AsyncGenerator[str, None]:
     """Stream a response from OpenAI for a given prompt and model configuration.
+
+    Deliberately not wrapped in @retry_openai_call, unlike generate_openai:
+    retrying after chunks have already been yielded to the client would mean
+    re-sending or duplicating partial output, which isn't safe to do
+    transparently. Retry is only applied to the non-streaming path.
 
     Args:
         prompt (str): The input prompt.

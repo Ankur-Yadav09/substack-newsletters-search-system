@@ -4930,6 +4930,7 @@ dependencies = [
     { name = "responses" },
     { name = "sqlalchemy" },
     { name = "supabase" },
+    { name = "tenacity" },
     { name = "tiktoken" },
     { name = "uvicorn" },
 ]
@@ -4970,6 +4971,7 @@ requires-dist = [
     { name = "responses" },
     { name = "sqlalchemy", specifier = ">=2.0" },
     { name = "supabase", specifier = ">=2.28" },
+    { name = "tenacity", specifier = ">=9.0" },
     { name = "tiktoken", specifier = ">=0.12" },
     { name = "uvicorn", specifier = ">=0.42" },
 ]
