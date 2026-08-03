@@ -33,8 +33,14 @@ DATABASE_URL = (
 
 @pytest.fixture(scope="session")
 def db_engine() -> Generator[Engine, None, None]:
-    """Create a SQLAlchemy engine for the test database session.
-    Disposes the engine after the test session completes.
+    """Create a SQLAlchemy engine for the test database session, creating any
+    test-only tables (e.g. `substack_test`) that don't already exist.
+
+    Deliberately NOT autouse: only tests marked `integration` request this
+    fixture (directly or via `db_session`), so a real DB connection is only
+    attempted when integration tests are actually selected — running
+    `pytest -m "not integration"` (as CI's unmocked `test` job does) never
+    triggers this fixture and needs no live database.
 
     Args:
         None
@@ -43,24 +49,11 @@ def db_engine() -> Generator[Engine, None, None]:
     """
     logger.info("Creating test database engine")
     engine = create_engine(DATABASE_URL)
+    logger.info("Ensuring test-only tables exist")
+    TestBase.metadata.create_all(bind=engine)
     yield engine
     logger.info("Disposing test database engine")
     engine.dispose()
-
-
-@pytest.fixture(scope="session", autouse=True)
-def ensure_test_tables(db_engine: Engine) -> None:
-    """Create tables required by the test suite (e.g. `substack_test`) if they
-    don't already exist, so tests never depend on manual database setup.
-
-    Args:
-        db_engine (Engine): The SQLAlchemy engine to create tables on.
-
-    Returns:
-        None
-    """
-    logger.info("Ensuring test-only tables exist")
-    TestBase.metadata.create_all(bind=db_engine)
 
 
 @pytest.fixture(scope="function")
