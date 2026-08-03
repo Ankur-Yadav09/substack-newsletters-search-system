@@ -16,6 +16,8 @@ sys.path.insert(0, str(Path(__file__).parent.parent / "src"))
 from config import settings
 from utils.logger_util import setup_logging
 
+from src.api.services.semantic_cache_service import semantic_cache
+
 # Import registers the test-only table (`substack_test`) on its own Base.metadata,
 # used by ensure_test_tables below.
 from test_models.test_sql_models import Base as TestBase
@@ -92,3 +94,14 @@ def clear_prefect_cache() -> Generator[None, None, None]:
     if prefect_dir.exists():
         shutil.rmtree(prefect_dir, ignore_errors=True)
     logger.debug("Cleared Prefect cache after test")
+
+
+@pytest.fixture(scope="function", autouse=True)
+def clear_semantic_cache() -> Generator[None, None, None]:
+    """Clear the module-level semantic cache singleton before and after each
+    test function, so a cache entry populated by one test can't produce a
+    surprise hit (or a false miss) in another.
+    """
+    semantic_cache.clear()
+    yield
+    semantic_cache.clear()

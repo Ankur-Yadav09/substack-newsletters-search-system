@@ -103,6 +103,47 @@ class RerankerSettings(BaseModel):
 
 
 # -----------------------------
+# Semantic cache settings
+# -----------------------------
+class SemanticCacheSettings(BaseModel):
+    enabled: bool = Field(
+        default=True,
+        description=(
+            "Whether to cache /search/ask answers keyed by (provider, model, "
+            "filters, limit) plus a similarity check on the query's dense "
+            "embedding. A near-duplicate question within the similarity "
+            "threshold skips retrieval and LLM generation entirely and returns "
+            "the cached answer."
+        ),
+    )
+    similarity_threshold: float = Field(
+        default=0.92,
+        description=(
+            "Minimum cosine similarity (0-1) between a new query's embedding and "
+            "a cached query's embedding to count as a cache hit. Higher is "
+            "stricter (fewer false-positive hits, more cache misses). Measured "
+            "empirically against this project's dense model (BAAI/bge-base-en): "
+            "an obvious paraphrase ('Explain me Langchain?' vs 'What is "
+            "LangChain?') scored ~0.90, while an unrelated question scored "
+            "~0.45 -- 0.95 was too strict to catch real paraphrases, and there's "
+            "a wide safety margin down to 0.92 before unrelated questions risk "
+            "colliding."
+        ),
+    )
+    ttl_seconds: int = Field(
+        default=3600,
+        description="How long a cached answer stays eligible for a hit before expiring.",
+    )
+    max_size: int = Field(
+        default=200,
+        description=(
+            "Maximum number of cached answers kept in memory across all contexts. "
+            "Oldest entries are evicted first once this is exceeded."
+        ),
+    )
+
+
+# -----------------------------
 # Text splitting
 # -----------------------------
 class TextSplitterSettings(BaseModel):
@@ -260,6 +301,7 @@ class Settings(BaseSettings):
     supabase_db: SupabaseDBSettings = Field(default_factory=SupabaseDBSettings)
     qdrant: QdrantSettings = Field(default_factory=QdrantSettings)
     reranker: RerankerSettings = Field(default_factory=RerankerSettings)
+    semantic_cache: SemanticCacheSettings = Field(default_factory=SemanticCacheSettings)
     rss: RSSSettings = Field(default_factory=RSSSettings)
     text_splitter: TextSplitterSettings = Field(default_factory=TextSplitterSettings)
 

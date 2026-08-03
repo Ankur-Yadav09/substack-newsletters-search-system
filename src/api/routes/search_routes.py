@@ -14,6 +14,8 @@ from src.api.models.api_models import (
 )
 from src.api.services.generation_service import generate_answer, get_streaming_function
 from src.api.services.search_service import query_unique_titles, query_with_filters
+from src.api.services.semantic_cache_service import build_context_key, semantic_cache
+from src.infrastructure.qdrant.qdrant_vectorstore import AsyncQdrantVectorStore
 
 # API key + rate limiting apply to every route on this router. Deliberately not
 # applied to health_routes.py — container/load-balancer health checks need to hit
@@ -52,8 +54,12 @@ async def ask_with_generation(request: Request, ask: AskRequest):
     """Non-streaming question-answering endpoint using vector search and LLM.
 
     Workflow:
+        0. Check the semantic cache -- a near-duplicate question already answered
+           under the same provider/model/filters/limit skips retrieval and
+           generation entirely.
         1. Retrieve relevant documents (possibly duplicate titles for richer context).
         2. Generate an answer with the selected LLM provider.
+        3. Store the new answer in the semantic cache for future hits.
 
     Args:
         request: FastAPI request object.
@@ -63,6 +69,21 @@ async def ask_with_generation(request: Request, ask: AskRequest):
         AskResponse: Generated answer and source documents.
 
     """
+    vectorstore: AsyncQdrantVectorStore = request.app.state.vectorstore
+    context_key = build_context_key(ask)
+    query_vector = vectorstore.dense_vectors([ask.query_text])[0]
+
+    cached = semantic_cache.get(context_key, query_vector)
+    if cached is not None:
+        return AskResponse(
+            query=ask.query_text,
+            provider=ask.provider,
+            answer=cached.answer,
+            sources=cached.sources,
+            model=cached.model,
+            finish_reason=cached.finish_reason,
+        )
+
     # Step 1: Retrieve relevant documents with filters
     results: list[SearchResult] = await query_with_filters(
         request,
@@ -80,6 +101,15 @@ async def ask_with_generation(request: Request, ask: AskRequest):
         contexts=results,
         provider=ask.provider,
         selected_model=ask.model,
+    )
+
+    semantic_cache.set(
+        context_key,
+        query_vector,
+        answer=answer_data["answer"],
+        sources=results,
+        model=answer_data.get("model", None),
+        finish_reason=answer_data.get("finish_reason", None),
     )
 
     return AskResponse(
