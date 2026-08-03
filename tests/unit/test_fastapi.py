@@ -70,6 +70,16 @@ def fake_vectorstore():
     fake_store.collection_name = "test_collection"
     fake_store.client = fake_client
 
+    # Reranking is on by default (settings.reranker.enabled=True); give it a
+    # real return value (not an unconfigured MagicMock) so search_service.py's
+    # zip(candidates, scores) works. A constant score is fine here since these
+    # tests only ever return a single fake point, so relative ordering never
+    # matters for what they assert.
+    fake_store.reranker_settings = SimpleNamespace(enabled=True, candidate_pool_size=25)
+    fake_store.rerank = MagicMock(
+        side_effect=lambda query, documents: [1.0] * len(documents)
+    )
+
     with patch("src.api.main.AsyncQdrantVectorStore", return_value=fake_store):
         yield fake_store
 

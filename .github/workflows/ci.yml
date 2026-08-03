@@ -63,21 +63,6 @@ jobs:
   test:
     name: Tests (fully mocked, no external services required)
     runs-on: ubuntu-latest
-    env:
-      # Fake, non-functional placeholder values — NOT real credentials.
-      # openai_service.py and openrouter_service.py both construct their
-      # AsyncOpenAI client at *import time* (module-level, not inside a
-      # function), and the OpenAI SDK's constructor raises OpenAIError if
-      # api_key is empty and no OPENAI_API_KEY/OPENAI_ADMIN_KEY env var is
-      # set either — it fails before any test code runs at all, so pytest
-      # errors out during collection rather than inside a specific test.
-      # Locally this never surfaces because your .env already has a
-      # non-empty key; CI has no .env file, so settings.openai.api_key
-      # defaults to "" unless set here. No test in this job ever calls the
-      # real API (generate_openrouter etc. are patched), so any non-empty
-      # string satisfies the constructor.
-      OPENAI__API_KEY: "sk-fake-ci-placeholder-not-a-real-key"
-      OPENROUTER__API_KEY: "sk-fake-ci-placeholder-not-a-real-key"
     steps:
       - name: Checkout
         uses: actions/checkout@v4
@@ -125,32 +110,21 @@ jobs:
       SUPABASE_DB__PORT: ${{ secrets.SUPABASE_DB__PORT }}
       SUPABASE_DB__TABLE_NAME: ${{ secrets.SUPABASE_DB__TABLE_NAME }}
 
-      # --- Required for pytest collection to succeed, even though no
-      # --- integration test itself uses these ---
-      # pytest imports every test file during collection before filtering by
-      # marker, so tests/unit/test_fastapi.py gets imported here too (even
-      # though its 3 tests are deselected) -- and that import chain
-      # eventually constructs openai_service.py's and openrouter_service.py's
-      # module-level AsyncOpenAI clients. The OpenAI SDK raises OpenAIError
-      # if api_key is empty and no OPENAI_API_KEY env var is set either, so
-      # without these, collection fails before any test runs. Fake,
-      # non-functional values -- no test here ever calls the real API.
-      OPENAI__API_KEY: "sk-fake-ci-placeholder-not-a-real-key"
-      OPENROUTER__API_KEY: "sk-fake-ci-placeholder-not-a-real-key"
-
       # --- Reserved for later, not required today ---
       # No current test needs any of these — they're wired up now so that
-      # if/when you add a test that actually calls a live Qdrant collection
-      # or checks something on the Opik dashboard, it'll already have
-      # credentials available with no extra CI setup. Unlike OpenAI/
-      # OpenRouter above, Qdrant's client is constructed lazily (inside
-      # AsyncQdrantVectorStore.__init__, not at module import time), so
-      # leaving these unset never breaks collection -- they're just empty
-      # strings until you add the actual secrets.
+      # if/when you add a test that actually calls a live Qdrant collection,
+      # a real OpenRouter model, or checks something on the Opik dashboard,
+      # it'll already have credentials available with no extra CI setup.
+      # If left unset in GitHub, these are just empty strings — harmless,
+      # since nothing reads them yet. Add the secrets whenever you add a
+      # test that needs them, not before.
       QDRANT__API_KEY: ${{ secrets.QDRANT__API_KEY }}
       QDRANT__URL: ${{ secrets.QDRANT__URL }}
       QDRANT__COLLECTION_NAME: ${{ secrets.QDRANT__COLLECTION_NAME }}
+      
+      OPENROUTER__API_KEY: ${{ secrets.OPENROUTER__API_KEY }}
       OPENROUTER__API_URL: ${{ secrets.OPENROUTER__API_URL }}
+
       OPIK__API_KEY: ${{ secrets.OPIK__API_KEY }}
       OPIK__PROJECT_NAME: ${{ secrets.OPIK__PROJECT_NAME }}
       OPIK__WORKSPACE: ${{ secrets.OPIK__WORKSPACE }}

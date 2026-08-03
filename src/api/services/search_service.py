@@ -18,6 +18,54 @@ from src.utils.logger_util import setup_logging
 logger = setup_logging()
 
 
+def _rerank_results(
+    vectorstore: AsyncQdrantVectorStore,
+    query_text: str,
+    results: list[SearchResult],
+    limit: int,
+) -> list[SearchResult]:
+    """Re-score a candidate pool of RRF-fused results with a cross-encoder and
+    return the top `limit`.
+
+    RRF fusion ranks purely on reciprocal rank across the dense/sparse branches,
+    which ignores how well each chunk's actual text answers the query. Re-scoring
+    the top candidates with a cross-encoder (which looks at query+document
+    together, unlike the independently-embedded dense/sparse vectors) typically
+    produces a meaningfully better final ordering.
+
+    Only the top `candidate_pool_size` RRF results are re-scored, not the full
+    overfetched set, to keep per-query latency bounded. Falls back to the
+    original RRF order if re-ranking is disabled or there's nothing to score.
+
+    Args:
+        vectorstore (AsyncQdrantVectorStore): Provides the reranker and its settings.
+        query_text (str): The user's search query.
+        results (list[SearchResult]): RRF-fused, deduplicated candidates, already
+            ordered by fusion score (best first).
+        limit (int): Final number of results to return.
+
+    Returns:
+        list[SearchResult]: Top `limit` results, re-ordered by cross-encoder score
+            when re-ranking is enabled. Each result's `score` field is overwritten
+            with the cross-encoder score, so the returned score always matches the
+            criterion that produced the returned order (rather than leaving the
+            original, now-stale RRF fusion score attached).
+
+    """
+    if not vectorstore.reranker_settings.enabled or not results:
+        return results[:limit]
+
+    candidate_pool = results[: vectorstore.reranker_settings.candidate_pool_size]
+    scores = vectorstore.rerank(
+        query_text, [result.chunk_text or "" for result in candidate_pool]
+    )
+    for result, score in zip(candidate_pool, scores, strict=True):
+        result.score = score
+
+    candidate_pool.sort(key=lambda result: result.score, reverse=True)
+    return candidate_pool[:limit]
+
+
 @opik.track(name="query_with_filters")
 async def query_with_filters(
     request: Request,
@@ -120,7 +168,7 @@ async def query_with_filters(
             )
         )
 
-    results = results[:limit]
+    results = _rerank_results(vectorstore, query_text, results, limit)
     logger.info(f"Returning {len(results)} results for matching query '{query_text}'")
     return results
 
@@ -207,7 +255,15 @@ async def query_unique_titles(
         limit=fetch_limit,
     )
 
-    # Deduplicate by title
+    # Deduplicate by title. Collect enough candidates to fill the re-rank
+    # candidate pool (not just `limit`) so re-ranking has a real pool of unique
+    # titles to choose from, rather than pre-truncating to `limit` on raw RRF
+    # order before re-ranking ever runs.
+    pool_target = (
+        max(limit, vectorstore.reranker_settings.candidate_pool_size)
+        if vectorstore.reranker_settings.enabled
+        else limit
+    )
     seen_titles: set[str] = set()
     results: list[SearchResult] = []
     for point in response.points:
@@ -227,12 +283,11 @@ async def query_unique_titles(
                 score=point.score,
             )
         )
-        if len(results) >= limit:
+        if len(results) >= pool_target:
             break
 
+    results = _rerank_results(vectorstore, query_text, results, limit)
     logger.info(
         f"Returning {len(results)} unique title results for matching query '{query_text}'"
     )
-
-    # logger.info(f"results: {results}")
     return results

@@ -11,6 +11,7 @@ from typing import Any
 import numpy as np
 import requests
 from fastembed import SparseTextEmbedding, TextEmbedding
+from fastembed.rerank.cross_encoder import TextCrossEncoder
 from huggingface_hub import InferenceClient
 from qdrant_client import AsyncQdrantClient
 from qdrant_client.http.exceptions import UnexpectedResponse
@@ -62,6 +63,15 @@ class AsyncQdrantVectorStore:
         self.sparse_model = SparseTextEmbedding(
             model_name=vector_db.sparse_model_name,
             cache_dir=cache_dir,  # Only uses cache_dir if provided
+        )
+        self.reranker_settings = settings.reranker
+        self.reranker = (
+            TextCrossEncoder(
+                model_name=self.reranker_settings.model_name,
+                cache_dir=cache_dir,  # Only uses cache_dir if provided
+            )
+            if self.reranker_settings.enabled
+            else None
         )
         self.embedding_size = vector_db.vector_dim
         self.sparse_batch_size = vector_db.sparse_batch_size
@@ -476,6 +486,34 @@ class AsyncQdrantVectorStore:
             ]
         except Exception as e:
             self.logger.error(f"Failed to generate sparse vectors: {e}")
+            raise
+
+    def rerank(self, query: str, documents: list[str]) -> list[float]:
+        """Score how relevant each document is to the query using a local cross-encoder.
+
+        Args:
+            query (str): The user's search query.
+            documents (list[str]): Candidate document texts to score against the query.
+
+        Returns:
+            list[float]: Relevance score per document, same order as `documents`
+                (higher is more relevant).
+
+        Raises:
+            RuntimeError: If called while re-ranking is disabled
+                (settings.reranker.enabled=False).
+            Exception: If cross-encoder scoring fails.
+
+        """
+        if self.reranker is None:
+            raise RuntimeError(
+                "rerank() called but the reranker is disabled "
+                "(settings.reranker.enabled=False)"
+            )
+        try:
+            return list(self.reranker.rerank(query, documents))
+        except Exception as e:
+            self.logger.error(f"Failed to rerank documents: {e}")
             raise
 
     # -----------------------

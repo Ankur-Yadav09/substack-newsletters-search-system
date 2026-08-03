@@ -76,6 +76,33 @@ class QdrantSettings(BaseModel):
 
 
 # -----------------------------
+# Re-ranking settings
+# -----------------------------
+class RerankerSettings(BaseModel):
+    enabled: bool = Field(
+        default=True,
+        description=(
+            "Whether to re-score RRF-fused search results with a local cross-encoder "
+            "before truncating to the requested limit. Improves ranking quality over "
+            "raw RRF fusion at the cost of a small amount of extra CPU time per query."
+        ),
+    )
+    model_name: str = Field(
+        default="Xenova/ms-marco-MiniLM-L-6-v2",
+        description="Fastembed cross-encoder model used for re-ranking",
+    )
+    candidate_pool_size: int = Field(
+        default=25,
+        description=(
+            "Number of top RRF-fused results to re-score with the cross-encoder. "
+            "Only this many candidates are re-ranked (not the full overfetched set) "
+            "to keep per-query latency bounded; the final 'limit' results are drawn "
+            "from this pool."
+        ),
+    )
+
+
+# -----------------------------
 # Text splitting
 # -----------------------------
 class TextSplitterSettings(BaseModel):
@@ -232,6 +259,7 @@ def load_yaml_feeds(path: str) -> list[FeedItem]:
 class Settings(BaseSettings):
     supabase_db: SupabaseDBSettings = Field(default_factory=SupabaseDBSettings)
     qdrant: QdrantSettings = Field(default_factory=QdrantSettings)
+    reranker: RerankerSettings = Field(default_factory=RerankerSettings)
     rss: RSSSettings = Field(default_factory=RSSSettings)
     text_splitter: TextSplitterSettings = Field(default_factory=TextSplitterSettings)
 
