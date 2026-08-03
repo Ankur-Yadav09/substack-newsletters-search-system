@@ -44,6 +44,8 @@ async def search_unique(request: Request, params: UniqueTitleRequest):
         feed_name=params.feed_name,
         article_author=params.article_author,
         title_keywords=params.title_keywords,
+        date_from=params.date_from,
+        date_to=params.date_to,
         limit=params.limit,
     )
     return {"results": results}
@@ -92,6 +94,8 @@ async def ask_with_generation(request: Request, ask: AskRequest):
         feed_name=ask.feed_name,
         article_author=ask.article_author,
         title_keywords=ask.title_keywords,
+        date_from=ask.date_from,
+        date_to=ask.date_to,
         limit=ask.limit,
     )
 
@@ -146,6 +150,8 @@ async def ask_with_generation_stream(request: Request, ask: AskRequest):
         feed_name=ask.feed_name,
         article_author=ask.article_author,
         title_keywords=ask.title_keywords,
+        date_from=ask.date_from,
+        date_to=ask.date_to,
         limit=ask.limit,
     )
 

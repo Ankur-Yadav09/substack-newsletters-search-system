@@ -10,7 +10,8 @@ async def main() -> None:
     """Create necessary indexes for the Qdrant vector store.
 
     Initializes an AsyncQdrantVectorStore and creates HNSW, title, article authors,
-    feed author, and feed name indexes. Logs errors and ensures proper execution.
+    feed author, feed name, and published_at indexes. Logs errors and ensures
+    proper execution.
 
     Args:
         None
@@ -31,6 +32,7 @@ async def main() -> None:
         await vectorstore.create_article_authors_index()
         await vectorstore.create_feed_author_index()
         await vectorstore.create_article_feed_name_index()
+        await vectorstore.create_published_at_index()
         logger.info("Qdrant indexes created successfully")
     except RuntimeError as e:
         logger.error(f"Failed to create Qdrant indexes: {e}")

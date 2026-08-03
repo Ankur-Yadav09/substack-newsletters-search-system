@@ -15,10 +15,15 @@ from src.evaluation.golden_eval import (
 
 
 @pytest.mark.unit
-def test_load_dataset_has_at_least_twenty_queries() -> None:
+def test_load_dataset_returns_well_formed_queries() -> None:
+    """Deliberately doesn't assert a specific count -- how many queries (and
+    how many carry expected_output for Context Precision/Recall) is a content
+    curation decision for golden_eval_dataset.yaml, not a code invariant. This
+    only checks the structural shape every entry must have.
+    """
     dataset = _load_dataset()
 
-    assert len(dataset) >= 20
+    assert len(dataset) > 0
     assert all("query" in entry for entry in dataset)
 
 

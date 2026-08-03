@@ -210,8 +210,33 @@ def parse_authors(article_author_text):
     return [a.strip() for a in article_author_text.split(",") if a.strip()]
 
 
+def parse_date_filter(date_text):
+    """
+    Parse a date filter input, treating blank input as "no filter".
+
+    Format validation (expects YYYY-MM-DD) happens server-side — an invalid
+    string here comes back as a clean 422 from the backend rather than being
+    silently dropped.
+
+    Args:
+        date_text (str): User-entered date string, or empty.
+    Returns:
+        str | None: The stripped date string, or None if empty.
+    """
+    if not date_text or not date_text.strip():
+        return None
+    return date_text.strip()
+
+
 def handle_search_articles(
-    query_text, feed_name, feed_author, article_author, title_keywords, limit
+    query_text,
+    feed_name,
+    feed_author,
+    article_author,
+    title_keywords,
+    date_from,
+    date_to,
+    limit,
 ):
     """
     Handle article search
@@ -222,6 +247,8 @@ def handle_search_articles(
         feed_author (str): The author of the feed to filter articles by.
         article_author (str): Comma-separated article author names to filter by.
         title_keywords (str): Keywords to search for in article titles.
+        date_from (str): Only include articles published on/after this date (YYYY-MM-DD).
+        date_to (str): Only include articles published on/before this date (YYYY-MM-DD).
         limit (int): The maximum number of articles to return.
     Returns:
         str: HTML formatted string of search results or error message.
@@ -238,6 +265,8 @@ def handle_search_articles(
         "article_author": parse_authors(article_author),
         "limit": limit,
         "title_keywords": title_keywords.strip().lower() if title_keywords else None,
+        "date_from": parse_date_filter(date_from),
+        "date_to": parse_date_filter(date_to),
     }
 
     try:
@@ -276,6 +305,8 @@ def handle_ai_question_streaming(
     feed_name,
     feed_author,
     article_author,
+    date_from,
+    date_to,
     limit,
     provider,
     model,
@@ -288,6 +319,8 @@ def handle_ai_question_streaming(
         feed_name (str): The name of the feed to filter articles by.
         feed_author (str): The author of the feed to filter articles by.
         article_author (str): Comma-separated article author names to filter by.
+        date_from (str): Only include articles published on/after this date (YYYY-MM-DD).
+        date_to (str): Only include articles published on/before this date (YYYY-MM-DD).
         limit (int): The maximum number of articles to consider.
         provider (str): The LLM provider to use.
         model (str): The specific model to use from the provider.
@@ -307,6 +340,8 @@ def handle_ai_question_streaming(
         "feed_author": feed_author.strip() if feed_author else "",
         "feed_name": feed_name.strip() if feed_name else "",
         "article_author": parse_authors(article_author),
+        "date_from": parse_date_filter(date_from),
+        "date_to": parse_date_filter(date_to),
         "limit": limit,
         "provider": provider.lower(),
     }
@@ -350,7 +385,15 @@ def handle_ai_question_streaming(
 
 
 def handle_ai_question_non_streaming(
-    query_text, feed_name, feed_author, article_author, limit, provider, model
+    query_text,
+    feed_name,
+    feed_author,
+    article_author,
+    date_from,
+    date_to,
+    limit,
+    provider,
+    model,
 ):
     """
     Handle AI question without streaming
@@ -360,6 +403,8 @@ def handle_ai_question_non_streaming(
         feed_name (str): The name of the feed to filter articles by.
         feed_author (str): The author of the feed to filter articles by.
         article_author (str): Comma-separated article author names to filter by.
+        date_from (str): Only include articles published on/after this date (YYYY-MM-DD).
+        date_to (str): Only include articles published on/before this date (YYYY-MM-DD).
         limit (int): The maximum number of articles to consider.
         provider (str): The LLM provider to use.
         model (str): The specific model to use from the provider.
@@ -378,6 +423,8 @@ def handle_ai_question_non_streaming(
         "feed_author": feed_author.strip() if feed_author else "",
         "feed_name": feed_name.strip() if feed_name else "",
         "article_author": parse_authors(article_author),
+        "date_from": parse_date_filter(date_from),
+        "date_to": parse_date_filter(date_to),
         "limit": limit,
         "provider": provider.lower(),
     }
@@ -476,6 +523,16 @@ with gr.Blocks(title="Substack Articles LLM Engine", theme=gr.themes.Soft()) as 
                 placeholder="Filter by words in the title",
                 visible=True,
             )
+
+            with gr.Row():
+                date_from = gr.Textbox(
+                    label="Published from (optional)",
+                    placeholder="YYYY-MM-DD",
+                )
+                date_to = gr.Textbox(
+                    label="Published to (optional)",
+                    placeholder="YYYY-MM-DD",
+                )
 
             limit = gr.Slider(
                 minimum=1,
@@ -596,6 +653,8 @@ with gr.Blocks(title="Substack Articles LLM Engine", theme=gr.themes.Soft()) as 
         feed_author,
         article_author,
         title_keywords,
+        date_from,
+        date_to,
         limit,
         provider,
         model,
@@ -610,6 +669,8 @@ with gr.Blocks(title="Substack Articles LLM Engine", theme=gr.themes.Soft()) as 
             feed_author (str): The selected feed author
             article_author (str): Comma-separated article author names to filter by
             title_keywords (str): The title keywords (if applicable)
+            date_from (str): Only include articles published on/after this date (YYYY-MM-DD)
+            date_to (str): Only include articles published on/before this date (YYYY-MM-DD)
             limit (int): The number of results to return
             provider (str): The selected LLM provider (if applicable)
             model (str): The selected model (if applicable)
@@ -622,6 +683,8 @@ with gr.Blocks(title="Substack Articles LLM Engine", theme=gr.themes.Soft()) as 
                 feed_name,
                 feed_author,
                 article_author,
+                date_from,
+                date_to,
                 limit,
                 provider,
                 model,
@@ -635,6 +698,8 @@ with gr.Blocks(title="Substack Articles LLM Engine", theme=gr.themes.Soft()) as 
                     feed_author,
                     article_author,
                     title_keywords,
+                    date_from,
+                    date_to,
                     limit,
                 )
                 yield result, ""
@@ -644,6 +709,8 @@ with gr.Blocks(title="Substack Articles LLM Engine", theme=gr.themes.Soft()) as 
                     feed_name,
                     feed_author,
                     article_author,
+                    date_from,
+                    date_to,
                     limit,
                     provider,
                     model,
@@ -661,6 +728,8 @@ with gr.Blocks(title="Substack Articles LLM Engine", theme=gr.themes.Soft()) as 
             feed_author,
             article_author,
             title_keywords,
+            date_from,
+            date_to,
             limit,
             provider,
             model,

@@ -49,6 +49,19 @@ def test_context_key_normalizes_article_author_order() -> None:
 
 
 @pytest.mark.unit
+def test_context_key_distinguishes_different_date_ranges() -> None:
+    """A cached answer scoped to one date range must not be reused for a
+    request scoped to a different date range, even with identical query text.
+    """
+    jan_only = AskRequest(query_text="q", date_from="2026-01-01", date_to="2026-01-31")
+    jun_only = AskRequest(query_text="q", date_from="2026-06-01", date_to="2026-06-30")
+    unfiltered = AskRequest(query_text="q")
+
+    assert build_context_key(jan_only) != build_context_key(jun_only)
+    assert build_context_key(jan_only) != build_context_key(unfiltered)
+
+
+@pytest.mark.unit
 def test_cache_hit_for_identical_embedding() -> None:
     cache = SemanticCache()
     context_key = ("openrouter", None, None, None, None, None, 5)

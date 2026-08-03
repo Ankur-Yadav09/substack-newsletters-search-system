@@ -27,9 +27,11 @@ def build_context_key(ask: AskRequest) -> tuple:
 
     Everything except `query_text` must match exactly for a cache entry to be
     eligible — a cached OpenRouter answer shouldn't be served for an OpenAI
-    request, and a cached answer scoped to one feed_author shouldn't leak into
-    an unfiltered request. `query_text` itself is deliberately excluded: that's
-    compared by embedding similarity instead, not exact match.
+    request, a cached answer scoped to one feed_author shouldn't leak into
+    an unfiltered request, and a cached answer for one date range shouldn't
+    leak into a request scoped to a different date range. `query_text` itself
+    is deliberately excluded: that's compared by embedding similarity instead,
+    not exact match.
 
     Args:
         ask (AskRequest): The incoming /ask request.
@@ -46,6 +48,8 @@ def build_context_key(ask: AskRequest) -> tuple:
         ask.feed_name,
         tuple(sorted(ask.article_author)) if ask.article_author else None,
         ask.title_keywords,
+        ask.date_from,
+        ask.date_to,
         ask.limit,
     )
 

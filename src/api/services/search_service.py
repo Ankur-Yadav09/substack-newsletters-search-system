@@ -1,6 +1,9 @@
+from datetime import date
+
 import opik
 from fastapi import Request
 from qdrant_client.models import (
+    DatetimeRange,
     FieldCondition,
     Filter,
     Fusion,
@@ -16,6 +19,62 @@ from src.infrastructure.qdrant.qdrant_vectorstore import AsyncQdrantVectorStore
 from src.utils.logger_util import setup_logging
 
 logger = setup_logging()
+
+
+def _build_filter(
+    feed_author: str | None,
+    feed_name: str | None,
+    article_author: list[str] | None,
+    title_keywords: str | None,
+    date_from: date | None,
+    date_to: date | None,
+) -> Filter | None:
+    """Build the shared Qdrant filter used by both search functions.
+
+    Args:
+        feed_author (str | None): Exact-match filter for the feed author.
+        feed_name (str | None): Exact-match filter for the feed name.
+        article_author (list[str] | None): Match-any filter against article_authors.
+        title_keywords (str | None): Substring/keyword filter on the title.
+        date_from (date | None): Only include articles published on/after this date.
+        date_to (date | None): Only include articles published on/before this date.
+
+    Returns:
+        Filter | None: A Qdrant Filter with a `must` condition per active
+            filter, or None if no filters were provided.
+
+    """
+    conditions: list[FieldCondition] = []
+    if feed_author:
+        conditions.append(
+            FieldCondition(key="feed_author", match=MatchValue(value=feed_author))
+        )
+    if feed_name:
+        conditions.append(
+            FieldCondition(key="feed_name", match=MatchValue(value=feed_name))
+        )
+    if article_author:
+        conditions.append(
+            FieldCondition(key="article_authors", match=MatchAny(any=article_author))
+        )
+    if title_keywords:
+        conditions.append(
+            FieldCondition(
+                key="title", match=MatchText(text=title_keywords.strip().lower())
+            )
+        )
+    if date_from or date_to:
+        # published_at requires a datetime payload index (see
+        # AsyncQdrantVectorStore.create_published_at_index) -- Qdrant rejects
+        # range filters on an unindexed field. DatetimeRange accepts a plain
+        # `date` directly (verified against the real collection), no manual
+        # string conversion needed.
+        conditions.append(
+            FieldCondition(
+                key="published_at", range=DatetimeRange(gte=date_from, lte=date_to)
+            )
+        )
+    return Filter(must=conditions) if conditions else None  # type: ignore
 
 
 def _rerank_results(
@@ -74,13 +133,15 @@ async def query_with_filters(
     feed_name: str | None = None,
     article_author: list[str] | None = None,
     title_keywords: str | None = None,
+    date_from: date | None = None,
+    date_to: date | None = None,
     limit: int = 5,
 ) -> list[SearchResult]:
     """Query the vector store with optional filters and return search results.
 
     Performs a hybrid dense + sparse search on Qdrant and applies filters based
-    on feed author, feed name, article author(s), and title keywords. Results are
-    deduplicated by point ID.
+    on feed author, feed name, article author(s), title keywords, and publish
+    date range. Results are deduplicated by point ID.
 
     Args:
         request (Request): FastAPI request object containing the vector store in app.state.
@@ -90,6 +151,8 @@ async def query_with_filters(
         article_author (list[str] | None): Optional filter matching any of the given
             article authors against the article_authors payload field.
         title_keywords (str | None): Optional filter for title keywords.
+        date_from (date | None): Only include articles published on/after this date.
+        date_to (date | None): Only include articles published on/before this date.
         limit (int): Maximum number of results to return.
 
     Returns:
@@ -101,28 +164,9 @@ async def query_with_filters(
     dense_vector = vectorstore.dense_vectors([query_text])[0]
     sparse_vector = vectorstore.sparse_vectors([query_text])[0]
 
-    # Build filter conditions
-    conditions: list[FieldCondition] = []
-    if feed_author:
-        conditions.append(
-            FieldCondition(key="feed_author", match=MatchValue(value=feed_author))
-        )
-    if feed_name:
-        conditions.append(
-            FieldCondition(key="feed_name", match=MatchValue(value=feed_name))
-        )
-    if article_author:
-        conditions.append(
-            FieldCondition(key="article_authors", match=MatchAny(any=article_author))
-        )
-    if title_keywords:
-        conditions.append(
-            FieldCondition(
-                key="title", match=MatchText(text=title_keywords.strip().lower())
-            )
-        )
-
-    query_filter = Filter(must=conditions) if conditions else None  # type: ignore
+    query_filter = _build_filter(
+        feed_author, feed_name, article_author, title_keywords, date_from, date_to
+    )
 
     fetch_limit = max(1, limit) * 100
     logger.info(f"Fetching up to {fetch_limit} points for unique Ids.")
@@ -181,6 +225,8 @@ async def query_unique_titles(
     feed_name: str | None = None,
     article_author: list[str] | None = None,
     title_keywords: str | None = None,
+    date_from: date | None = None,
+    date_to: date | None = None,
     limit: int = 5,
 ) -> list[SearchResult]:
     """Query the vector store and return only unique titles.
@@ -197,6 +243,8 @@ async def query_unique_titles(
         article_author (list[str] | None): Optional filter matching any of the given
             article authors against the article_authors payload field.
         title_keywords (str | None): Optional filter for title keywords.
+        date_from (date | None): Only include articles published on/after this date.
+        date_to (date | None): Only include articles published on/before this date.
         limit (int): Maximum number of unique results to return.
 
     Returns:
@@ -208,28 +256,9 @@ async def query_unique_titles(
     dense_vector = vectorstore.dense_vectors([query_text])[0]
     sparse_vector = vectorstore.sparse_vectors([query_text])[0]
 
-    # Build filter conditions
-    conditions: list[FieldCondition] = []
-    if feed_author:
-        conditions.append(
-            FieldCondition(key="feed_author", match=MatchValue(value=feed_author))
-        )
-    if feed_name:
-        conditions.append(
-            FieldCondition(key="feed_name", match=MatchValue(value=feed_name))
-        )
-    if article_author:
-        conditions.append(
-            FieldCondition(key="article_authors", match=MatchAny(any=article_author))
-        )
-    if title_keywords:
-        conditions.append(
-            FieldCondition(
-                key="title", match=MatchText(text=title_keywords.strip().lower())
-            )
-        )
-
-    query_filter = Filter(must=conditions) if conditions else None  # type: ignore
+    query_filter = _build_filter(
+        feed_author, feed_name, article_author, title_keywords, date_from, date_to
+    )
 
     fetch_limit = max(1, limit) * 280
     logger.info(f"Fetching up to {fetch_limit} points for unique titles.")

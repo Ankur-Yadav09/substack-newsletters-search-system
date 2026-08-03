@@ -341,6 +341,32 @@ class AsyncQdrantVectorStore:
             self.logger.error(f"Failed to create feed_name index: {e}")
             raise RuntimeError("Error creating feed_name index") from e
 
+    async def create_published_at_index(self) -> None:
+        """Create datetime index for published_at field, required for date-range
+        filtering (Qdrant rejects range queries on an unindexed field).
+
+        Returns:
+            None
+
+        Raises:
+            RuntimeError: If index creation fails.
+            Exception: For unexpected errors.
+
+        """
+        try:
+            self.logger.info(
+                f"Creating published_at index for '{self.collection_name}'"
+            )
+            await self.client.create_payload_index(
+                collection_name=self.collection_name,
+                field_name="published_at",
+                field_schema=models.PayloadSchemaType.DATETIME,
+            )
+            self.logger.info(f"published_at index created for '{self.collection_name}'")
+        except Exception as e:
+            self.logger.error(f"Failed to create published_at index: {e}")
+            raise RuntimeError("Error creating published_at index") from e
+
     async def create_title_index(self) -> None:
         """Create text index for title field with Snowball stemmer.
 

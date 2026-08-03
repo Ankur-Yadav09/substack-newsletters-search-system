@@ -121,6 +121,8 @@ async def _run_one(
         feed_name=entry.get("feed_name"),
         article_author=entry.get("article_author"),
         title_keywords=entry.get("title_keywords"),
+        date_from=entry.get("date_from"),
+        date_to=entry.get("date_to"),
         limit=entry.get("limit", 5),
     )
     answer_data = await generate_answer(

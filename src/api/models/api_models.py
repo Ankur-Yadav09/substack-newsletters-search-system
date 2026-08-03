@@ -1,4 +1,6 @@
-from pydantic import BaseModel, Field, field_validator
+from datetime import date
+
+from pydantic import BaseModel, Field, field_validator, model_validator
 
 from src.api.models.provider_models import LLMProvider
 
@@ -6,6 +8,16 @@ from src.api.models.provider_models import LLMProvider
 # multipliers in search_service.py (limit * 100 / limit * 280) from ballooning
 # into unbounded queries.
 MAX_RESULT_LIMIT = 25
+
+
+def _check_date_range(date_from: date | None, date_to: date | None) -> None:
+    """Reject an inverted date range with a clear error instead of silently
+    returning zero results from Qdrant.
+    """
+    if date_from and date_to and date_from > date_to:
+        raise ValueError(
+            f"date_from ({date_from}) must not be after date_to ({date_to})"
+        )
 
 
 # -----------------------
@@ -44,9 +56,20 @@ class UniqueTitleRequest(BaseModel):
     title_keywords: str | None = Field(
         default=None, description="Keywords or phrase to match in title"
     )
+    date_from: date | None = Field(
+        default=None, description="Only include articles published on/after this date"
+    )
+    date_to: date | None = Field(
+        default=None, description="Only include articles published on/before this date"
+    )
     limit: int = Field(
         default=5, ge=1, le=MAX_RESULT_LIMIT, description="Number of results to return"
     )
+
+    @model_validator(mode="after")
+    def _validate_date_range(self) -> "UniqueTitleRequest":
+        _check_date_range(self.date_from, self.date_to)
+        return self
 
 
 class UniqueTitleResponse(BaseModel):
@@ -72,6 +95,12 @@ class AskRequest(BaseModel):
     title_keywords: str | None = Field(
         default=None, description="Keywords or phrase to match in title"
     )
+    date_from: date | None = Field(
+        default=None, description="Only include articles published on/after this date"
+    )
+    date_to: date | None = Field(
+        default=None, description="Only include articles published on/before this date"
+    )
     limit: int = Field(
         default=5, ge=1, le=MAX_RESULT_LIMIT, description="Number of results to return"
     )
@@ -90,6 +119,11 @@ class AskRequest(BaseModel):
         if isinstance(value, str):
             return value.strip().lower()
         return value
+
+    @model_validator(mode="after")
+    def _validate_date_range(self) -> "AskRequest":
+        _check_date_range(self.date_from, self.date_to)
+        return self
 
 
 # -----------------------
