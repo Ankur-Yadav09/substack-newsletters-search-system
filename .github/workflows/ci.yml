@@ -63,6 +63,21 @@ jobs:
   test:
     name: Tests (fully mocked, no external services required)
     runs-on: ubuntu-latest
+    env:
+      # Fake, non-functional placeholder values — NOT real credentials.
+      # openai_service.py and openrouter_service.py both construct their
+      # AsyncOpenAI client at *import time* (module-level, not inside a
+      # function), and the OpenAI SDK's constructor raises OpenAIError if
+      # api_key is empty and no OPENAI_API_KEY/OPENAI_ADMIN_KEY env var is
+      # set either — it fails before any test code runs at all, so pytest
+      # errors out during collection rather than inside a specific test.
+      # Locally this never surfaces because your .env already has a
+      # non-empty key; CI has no .env file, so settings.openai.api_key
+      # defaults to "" unless set here. No test in this job ever calls the
+      # real API (generate_openrouter etc. are patched), so any non-empty
+      # string satisfies the constructor.
+      OPENAI__API_KEY: "sk-fake-ci-placeholder-not-a-real-key"
+      OPENROUTER__API_KEY: "sk-fake-ci-placeholder-not-a-real-key"
     steps:
       - name: Checkout
         uses: actions/checkout@v4
