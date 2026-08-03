@@ -103,6 +103,24 @@ run-gradio: ## Run Gradio application
 	@echo "Gradio application stopped."
 
 #################################################################################
+## Golden Eval Commands
+#################################################################################
+# Manual only -- hits live Qdrant + a real LLM provider + OpenAI's gpt-4o as
+# G-Eval judge for every query in the dataset, so this costs real API credits
+# and isn't run automatically anywhere (not in CI, not on a schedule). Run it
+# yourself after a prompt/retrieval change to check for regressions.
+
+golden-eval: ## Run the golden eval dataset and compare to the saved baseline
+	@echo "Running golden eval dataset..."
+	uv run python -m src.evaluation.golden_eval
+	@echo "Golden eval complete."
+
+golden-eval-save-baseline: ## Run the golden eval dataset and save it as the new baseline
+	@echo "Running golden eval dataset and saving as new baseline..."
+	uv run python -m src.evaluation.golden_eval --save-baseline
+	@echo "Golden eval baseline saved."
+
+#################################################################################
 ## Testing Commands
 #################################################################################
 

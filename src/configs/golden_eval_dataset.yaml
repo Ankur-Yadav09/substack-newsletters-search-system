@@ -1,0 +1,81 @@
+# Golden evaluation dataset for regression testing (src/evaluation/golden_eval.py).
+#
+# Most entries have no "expected_output": the 6 default scoring metrics (faithfulness,
+# coherence, completeness, hallucination, answer_relevance, usefulness -- the same
+# ones used in production, see evaluation_metrics.py) are reference-free LLM-judge
+# metrics that score an answer against the query and retrieved context, not against
+# a fixed expected string. That avoids the dataset going stale/wrong every time the
+# underlying articles are re-ingested or reworded -- what stays constant is the set
+# of questions asked and the metrics they're scored on, which is exactly what you
+# want for "did this prompt/pipeline change make things worse" regression testing.
+#
+# A handful of entries DO have "expected_output" -- a reference answer curated from
+# real retrieved chunks (verified by actually running retrieval against the live
+# corpus first, not invented). Only those entries additionally get scored on
+# Context Precision and Context Recall (golden_eval.py), since Opik's implementation
+# of those two metrics requires expected_output to judge retrieval quality against.
+# These 6 were deliberately picked because retrieval for them was strong (chunks
+# directly and thoroughly cover the topic) -- queries with only thin/tangential
+# retrieved context were left without expected_output rather than force a reference
+# answer the corpus doesn't actually well support.
+#
+# Queries are broad, realistic questions about topics these newsletters plausibly
+# cover (RAG, agents, fine-tuning, MLOps, vector search) rather than referencing any
+# specific article, so the set stays meaningful regardless of which exact articles
+# are in the corpus at eval time. `feed_author` on a few entries also regression-tests
+# that metadata filtering keeps working, not just unfiltered search.
+queries:
+  - query: "Explain hybrid search combining dense and sparse embeddings."
+    expected_output: >
+      Hybrid search combines dense embeddings, which capture semantic similarity so
+      conceptually related terms are retrieved even with different wording, with
+      sparse embeddings, which preserve exact keyword precision for specific terms.
+      Combining both catches semantic relationships that keyword matching alone would
+      miss while preventing the system from drifting too far from the user's specific
+      terminology, and Reciprocal Rank Fusion (RRF) merges both result sets into one
+      final ranking.
+  - query: "Explain supervised fine-tuning (SFT)."
+    expected_output: >
+      Supervised Fine-Tuning (SFT) is the stage where a base model stops being a
+      plain text-completion engine and starts behaving like a conversational
+      participant. It covers why SFT exists, how loss masking works, chat templates,
+      instruction formats, and dataset creation -- it isn't primarily about adding
+      new knowledge to the model, but about teaching it structure and how to follow
+      instructions.
+      
+  - query: "What is Pydantic used for in Python applications?"
+    expected_output: >
+      Pydantic is used for data validation and settings management in Python
+      applications, including data pipelines, machine learning workflows, and AI
+      applications with LLM integrations. Its configuration system provides model
+      configuration, field definitions, and settings management, along with custom
+      types such as Secret, SecretStr, and SecretBytes for safely handling sensitive
+      data like API keys and passwords.
+
+  - query: "How does text chunking work for RAG pipelines?"
+    expected_output: >
+      Text chunking for RAG splits long articles into smaller pieces suitable for
+      embedding, using a separator hierarchy that tries natural boundaries first --
+      horizontal rules, then paragraphs, then sentences, cascading down to word and
+      character boundaries only when necessary -- to preserve semantic coherence. A
+      common configuration uses around 4,000-character chunks (roughly 600-800 words)
+      with 200 characters of overlap, so a concept spanning a chunk boundary still has
+      enough context in both chunks for accurate retrieval.
+
+  - query: "What is AWS Bedrock AgentCore?"
+    expected_output: >
+      AWS Bedrock AgentCore, released for general availability in October 2025, is AWS
+      infrastructure for deploying AI agents with any framework, offering managed
+      memory, tool access, and a serverless runtime so AWS handles the underlying
+      infrastructure. It's designed to be framework-agnostic and model-agnostic, and
+      deployment is fast: running `agentcore configure` creates a configuration file,
+      and `agentcore deploy` packages your local Python code and deploys it to AWS.
+
+  - query: "Explain LLM observability and tracing."
+    expected_output: >
+      LLM observability and tracing is about pinpointing where things went wrong when
+      an agent gives a bad answer -- the wrong final answer is just the symptom; the
+      actual bug is usually buried somewhere in the many steps that happened before
+      it, such as a search step that returned empty results. Proper tracing captures
+      each of those intermediate steps so you can inspect the full execution path
+      rather than only the final output.
