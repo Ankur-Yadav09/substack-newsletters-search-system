@@ -738,15 +738,12 @@ with gr.Blocks(title="Substack Articles LLM Engine", theme=gr.themes.Soft()) as 
         show_progress=True,
     )
 
-# For local testing
+# Works both locally and deployed (e.g. the frontend Docker container behind Caddy):
+# 7860 is Gradio's own default, so local behavior is unchanged when PORT is unset.
+# GRADIO_AUTH_USERS must be set once this is actually reachable by anyone but you.
 if __name__ == "__main__":
-    demo.launch(auth=GRADIO_AUTH_USERS)
-
-# # For a deployed environment (e.g. AWS App Runner) — the platform provides PORT;
-# # GRADIO_AUTH_USERS must be set there for the login to actually be enforced.
-# if __name__ == "__main__":
-#     demo.launch(
-#         auth=GRADIO_AUTH_USERS,
-#         server_name="0.0.0.0",
-#         server_port=int(os.environ.get("PORT", 8080)),
-#     )
+    demo.launch(
+        auth=GRADIO_AUTH_USERS,
+        server_name="0.0.0.0",
+        server_port=int(os.environ.get("PORT", 7860)),
+    )

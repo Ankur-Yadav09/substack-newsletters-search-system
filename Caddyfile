@@ -1,0 +1,44 @@
+# Plain HTTP for now -- no domain pointed at this host yet. Path-based routing to
+# the two backing services on Docker's internal compose network (see docker-compose.yml).
+#
+# To add automatic HTTPS later: replace ":80" below with your real domain
+# (e.g. "example.com") -- Caddy handles Let's Encrypt provisioning/renewal on its
+# own from that point on. No other change needed, in this file or in the app.
+:80 {
+	# Caddy doesn't log requests by default -- only its own startup/admin events.
+	# This makes per-request access logs (method, path, status, duration) show up
+	# in `docker compose logs caddy`, which is what actually demonstrates the
+	# routing decisions in action.
+	log {
+		output stdout
+		format console
+	}
+
+	handle /search/* {
+		reverse_proxy backend:8080
+	}
+
+	handle /health {
+		reverse_proxy backend:8080
+	}
+
+	handle /ready {
+		reverse_proxy backend:8080
+	}
+
+	# FastAPI's interactive docs. Gradio is also FastAPI-based internally, so an
+	# unmatched path here would otherwise 404 against Gradio's own app instead of
+	# ever reaching the real backend -- easy to miss, worth being explicit.
+	# `handle` only takes one path argument, so this needs a named matcher instead
+	# (verified with `caddy validate` -- the single-path form failed to parse).
+	@fastapi_docs path /docs /redoc /openapi.json
+	handle @fastapi_docs {
+		reverse_proxy backend:8080
+	}
+
+	# Everything else -- the Gradio UI itself, its static assets, websocket/queue
+	# endpoints.
+	handle {
+		reverse_proxy frontend:7860
+	}
+}

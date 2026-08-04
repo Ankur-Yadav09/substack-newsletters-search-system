@@ -125,28 +125,20 @@ app.add_exception_handler(Exception, general_exception_handler)
 app.include_router(search_router, prefix="/search", tags=["search"])
 app.include_router(health_router, tags=["health"])
 
-# For Cloud Run, run the app directly
+# Local dev entrypoint (invoked via `make run-api` / `python -m src.api.main`). The
+# deployed container's CMD calls uvicorn directly instead (see Dockerfile), bypassing
+# this block entirely -- reload is still gated behind an env var here (default off)
+# rather than hardcoded, in case that ever changes.
 if __name__ == "__main__":
     import uvicorn
 
-    port = int(os.environ.get("PORT", 8080))  # Cloud Run provides PORT env var
+    port = int(os.environ.get("PORT", 8080))
+    reload = os.getenv("UVICORN_RELOAD", "false").lower() == "true"
 
     uvicorn.run(
         "src.api.main:app",
         host="0.0.0.0",
         port=port,
         log_level="info",
-        reload=True,  # Enable auto-reload for development
+        reload=reload,
     )
-
-    # config = uvicorn.Config(
-    #     app,
-    #     port=port,
-    #     log_level="info",
-    #     # loop="uvloop",
-    #     # workers=1,
-    #     reload=True
-    #     )
-    # server = uvicorn.Server(config)
-
-    # server.run()

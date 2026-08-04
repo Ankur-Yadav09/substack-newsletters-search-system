@@ -90,7 +90,7 @@ recreate-all: supabase-delete qdrant-delete-collection supabase-create qdrant-cr
 
 run-api: ## Run FastAPI application
 	@echo "Starting FastAPI application..."
-	uv run python -m src.api.main
+	UVICORN_RELOAD=true uv run python -m src.api.main
 	@echo "FastAPI application stopped."
 
 #################################################################################

@@ -65,3 +65,4 @@ pre-commit-config.yaml
 # pyproject.toml
 .python-version
 MEMORY.md
+.env

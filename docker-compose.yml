@@ -1,0 +1,65 @@
+# Local dev: `docker compose up --build` builds backend/frontend from source and
+# tags them with the `image:` name below.
+#
+# EC2 deploy: `docker compose pull && docker compose up -d` fetches those exact
+# tags from ECR instead -- never builds on the instance itself (a 1 GiB-RAM box
+# building `uv sync`/onnxruntime deps is a real risk on its own). Set
+# BACKEND_IMAGE/FRONTEND_IMAGE in .env to the real ECR repo URLs
+# (<account>.dkr.ecr.<region>.amazonaws.com/substack-backend:latest, etc.) once
+# those repos exist; unset, they fall back to a local-only tag.
+#
+# Only Caddy's port is published to the host -- backend/frontend are only reachable
+# from other containers on this compose network, routed through Caddy.
+
+services:
+  backend:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    image: ${BACKEND_IMAGE:-substack-backend:local}
+    env_file:
+      - .env
+    restart: unless-stopped
+    expose:
+      - "8080"
+
+  frontend:
+    build:
+      context: .
+      dockerfile: frontend/Dockerfile
+    image: ${FRONTEND_IMAGE:-substack-frontend:local}
+    env_file:
+      - .env
+    environment:
+      # Overrides .env's BACKEND_URL (which is correctly "http://localhost:8080" for
+      # non-Docker local dev, e.g. `make run-api` + `make run-gradio` run directly on
+      # the host). Inside compose, the frontend container reaches the backend
+      # container over Docker's internal network by service name, not localhost --
+      # this call is server-to-server (Python `requests`, not the browser), so it
+      # never goes through Caddy either.
+      BACKEND_URL: http://backend:8080
+    restart: unless-stopped
+    expose:
+      - "7860"
+
+  # Reverse proxy: single public entry point. Plain HTTP for now (no domain yet) --
+  # pointing a real domain at this host and using it as the Caddyfile site address
+  # instead of ":80" is all that's needed later for automatic HTTPS, no code changes.
+  caddy:
+    image: caddy:latest
+    depends_on:
+      backend:
+        condition: service_healthy
+      frontend:
+        condition: service_healthy
+    ports:
+      - "80:80"
+    volumes:
+      - ./Caddyfile:/etc/caddy/Caddyfile:ro
+      - caddy_data:/data
+      - caddy_config:/config
+    restart: unless-stopped
+
+volumes:
+  caddy_data:
+  caddy_config:
