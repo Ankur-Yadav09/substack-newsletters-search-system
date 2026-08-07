@@ -74,8 +74,9 @@ there's a stable, feature-complete app worth deploying and automating.
 
 ## Deployment plan — EC2 free tier (detailed reference for item #1 above)
 
-Planned but **not yet executed** — captured here in full so implementation can resume from
-this exact plan later. **Revised from an earlier App Runner-based plan** once it came to light
+**Phase 1 is done and verified. Phase 2 (real AWS resources) is next, not yet executed.**
+Captured here in full so implementation can resume from this exact plan at any point.
+**Revised from an earlier App Runner-based plan** once it came to light
 the AWS account is free-tier-only: App Runner has **no free tier at all** (billed per
 vCPU-hour/GB-hour from the first second — the earlier ~$25-50/mo estimate would have been real
 spend, not a discounted cost), so the architecture changed to a single free-tier-eligible EC2
@@ -115,7 +116,7 @@ build context. Whether the build happens on the user's own machine or in GitHub 
 to ECR — a registry is a persistent artifact store, not an ephemeral build context. Must be fixed
 before the first build meant for ECR.
 
-### Phase 1 — Local code fixes (no AWS involved, verify before touching AWS at all)
+### Phase 1 — Local code fixes ✅ DONE (no AWS involved, verified before touching AWS at all)
 
 1. **`.dockerignore`**: add `.env` (keep `.env.example` included — it has no real values).
    Verify with `docker history --no-trunc <image>` on a rebuilt image that no secret lands in
@@ -152,33 +153,102 @@ before the first build meant for ECR.
    `http://localhost/health` through Caddy, confirm the frontend loads through Caddy too,
    confirm a real question round-trips end-to-end; re-run the `docker history` check from step 1.
 
+**What actually happened during Phase 1 verification (real findings, not hypothetical):**
+- `.dockerignore` already excluded `.env` — verified further by running each built image and
+  checking `/app/.env` doesn't exist inside it (only `.env.example` does).
+- `docker compose up -d` worked first try: Caddy correctly waited for backend + frontend to
+  report `healthy` (via `depends_on: condition: service_healthy`, reading the Dockerfiles'
+  `HEALTHCHECK`s) before starting.
+- A real `/search/unique-titles` call through Caddy returned real, reranked results from the
+  live corpus — proving the backend container reaches the real external Qdrant/Supabase from
+  inside Docker.
+- Confirmed the frontend container reaches the backend via `http://backend:8080` (Docker's
+  internal DNS), not `localhost` or Caddy — that call is server-to-server (Python `requests`),
+  not something a browser does, so it was never subject to CORS in the first place.
+- **Two real gaps found and fixed in the `Caddyfile` that weren't caught by `caddy validate`**
+  (which only checks syntax, not routing completeness):
+  1. Caddy doesn't log requests by default (only its own startup/admin events) — added a
+     `log { output stdout; format console }` block so `docker compose logs caddy` actually shows
+     per-request access logs.
+  2. `/docs`, `/redoc`, `/openapi.json` (FastAPI's interactive docs) weren't routed to the
+     backend — they fell into the catch-all and hit Gradio instead. Since Gradio is *also*
+     FastAPI-based internally, its 404 for those paths looked deceptively like it came from the
+     real backend. Fixed with a named matcher: `@fastapi_docs path /docs /redoc /openapi.json`
+     then `handle @fastapi_docs { reverse_proxy backend:8080 }` (a bare `handle /docs /redoc
+     /openapi.json { ... }` fails to parse — `handle` only accepts one path argument; multiple
+     OR'd paths need a named matcher).
+  3. Also learned: editing `Caddyfile` on disk has zero effect on an already-running container
+     (it's a bind mount, read once at startup) — needs `docker compose restart caddy` to
+     actually take effect.
+
 ### Phase 2 — ECR + EC2 steps (user executes every command themselves via `!`)
+
+Detailed what/why/how for each step below, since these involve real AWS resources and real
+(if free-tier) money — worth understanding before running anything, not just copy-pasting.
+
+**Decisions made before starting:**
+- **Region: `us-west-2` (Oregon)** — matches the existing Qdrant instance's region. Every live
+  `/search/ask` request hits Qdrant, so this minimizes latency for the thing that actually
+  matters on every query. Supabase is `ap-south-1` (Mumbai) — a different region — but it's only
+  touched by occasional manual `make ingest-*` runs, never by a live request, so its region
+  doesn't drive this decision. Trade-off accepted: SSH/setup access from India will have higher
+  ping than a local region would, but that only affects setup convenience, not the deployed
+  app's actual user-facing performance.
+- **SSH key pair: create a new one dedicated to this instance** (via `aws ec2 create-key-pair`
+  in step 10), rather than reusing an existing one.
 
 8. **Create two ECR repositories** (backend, frontend) via `aws ecr create-repository` — run
    from the user's own machine.
+   - *What*: two empty private "image storage" repos in AWS, one per service — like a private
+     Docker Hub.
+   - *Why*: this is where the built images live so the EC2 instance can pull them later.
+   - *Cost*: negligible (~500 MB/month free for 12 months, then ~$0.10/GB-month).
 9. **Authenticate Docker to ECR from the local machine, build, tag, and push both images.** This
    is the "real RAM/CPU" build referenced above — nothing gets built on the EC2 instance itself.
+   - *What*: take the already-built-and-verified `substack-backend:local`/`substack-frontend:local`
+     images from Phase 1, retag them with ECR's naming format, upload them.
+   - *Why*: the user's own machine (or later, GitHub Actions) does the heavy lifting of
+     `uv sync`/compiling — not the tiny EC2 instance.
+   - *How*: `aws ecr get-login-password | docker login ...`, then `docker tag ... <ecr-url>/...`,
+     then `docker push`, for both images.
 10. **Launch a `t2.micro`/`t3.micro` EC2 instance** (free-tier-eligible AMI — Amazon Linux or
     Ubuntu) with an **IAM instance role** attached granting ECR pull access (e.g. the
     `AmazonEC2ContainerRegistryReadOnly` managed policy) — this is what lets the instance pull
     from ECR with no long-lived credentials stored on it. Security group: inbound 22 (SSH,
     ideally restricted to the user's own IP) and 80 (HTTP) — no need to open 8080/7860
     individually since Caddy is the single entry point.
+    - *What*: the actual virtual machine that runs everything, 24/7.
+    - *Decisions needed first*: AWS region, an SSH key pair (new or existing), the IAM instance
+      role, and the security group rules above.
 11. **Allocate an Elastic IP** (free while attached to a running instance) so the public address
     doesn't change across stop/start/restart.
+    - *Why*: without one, the instance's public IP changes every time it's stopped/started —
+      bad for a URL meant to be shared/kept. Free as long as it stays attached to a running
+      instance; AWS only charges for an allocated-but-unattached one.
 12. **SSH in; install Docker + the Compose plugin.**
+    - *Why*: the instance starts as a bare OS — nothing about Docker is pre-installed.
 13. **Add a swap file** (e.g. 2 GB) given the 1 GiB RAM constraint — `fallocate`/`dd` + `mkswap`
     + `swapon` + an `/etc/fstab` entry so it persists across reboots.
+    - *Why*: the honest, not-glossed-over part of this plan — 1 GiB of real RAM is tight for a
+      backend that loads 3 ML models into memory. Swap is cheap insurance against an OOM kill.
 14. **`git clone` the repo onto the instance** — still needed even though images come from ECR:
     this is where `docker-compose.yml` and `Caddyfile` come from.
+    - *Why*: those two files aren't baked into any image — they're the orchestration layer that
+      tells Docker which images to pull and how to wire them together.
 15. **Create a real `.env` file on the instance directly** (e.g. `nano .env`, or `scp` it up over
     SSH) — never via git, since it's gitignored and must stay that way.
+    - *Why*: `docker-compose.yml`'s `env_file: .env` needs this to exist to pass real secrets
+      into the containers.
 16. **Authenticate Docker to ECR from the instance** (via the IAM instance role — `aws ecr
     get-login-password` works automatically, no `aws configure` needed), then
     `docker compose pull && docker compose up -d`.
+    - *What*: the actual "go live" moment — fetches the exact images pushed in step 9 and starts
+      all three containers.
 17. **End-to-end verification**: curl `http://<elastic-ip>/health`; open `http://<elastic-ip>/`
     in a browser, confirm the Gradio login prompt (if `GRADIO_AUTH_USERS` is set), log in, ask a
     real question, confirm it returns an answer.
+    - Same kind of checks already proven locally in Phase 1 — this time against the real
+      infrastructure, not assumed to carry over just because it worked locally.
 
 **Explicitly deferred (not part of this step):** CD pipeline (separate item, see above); a real
 domain + automatic HTTPS (just a `Caddyfile` + DNS change whenever wanted, no code changes);

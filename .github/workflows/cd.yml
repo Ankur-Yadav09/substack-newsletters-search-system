@@ -1,0 +1,86 @@
+# Continuous Deployment.
+#
+# Triggered automatically once the CI workflow finishes on main, and only proceeds
+# if CI actually passed -- so a broken build/test run never gets deployed. Two jobs:
+#   - build-and-push: builds both images fresh from the just-merged main branch,
+#     pushes them to ECR tagged "latest".
+#   - deploy: SSHes into the EC2 instance, pulls latest code (docker-compose.yml/
+#     Caddyfile can change independently of the images) and the freshly pushed
+#     images, restarts the stack.
+#
+# Secrets required (Settings > Secrets and variables > Actions):
+#   AWS_ACCESS_KEY_ID / AWS_SECRET_ACCESS_KEY  - dedicated `github-actions-ci` IAM
+#     user, scoped to AmazonEC2ContainerRegistryPowerUser only (push/pull ECR,
+#     nothing else -- can't touch EC2, IAM, or anything besides the two repos).
+#   EC2_SSH_KEY   - full contents of substack-rag-key.pem (the dedicated deploy key
+#     created for this instance, never committed to the repo).
+#   EC2_HOST      - the instance's Elastic IP.
+name: CD
+
+"on":
+  workflow_run:
+    workflows: ["CI"]
+    types: [completed]
+    branches: [main]
+
+jobs:
+  # ---------------------------------------------------------------------------
+  # Only runs if the CI run that triggered this actually succeeded -- on a CI
+  # failure this workflow still fires (workflow_run always does) but every job
+  # below is skipped via this same conclusion check.
+  # ---------------------------------------------------------------------------
+  build-and-push:
+    name: Build and push images to ECR
+    if: github.event.workflow_run.conclusion == 'success'
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Configure AWS credentials
+        uses: aws-actions/configure-aws-credentials@v4
+        with:
+          aws-access-key-id: ${{ secrets.AWS_ACCESS_KEY_ID }}
+          aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
+          aws-region: us-west-2
+
+      # Resolves the account-specific registry URL (<account-id>.dkr.ecr.us-west-2.amazonaws.com)
+      # via the credentials above, so it's never hardcoded here.
+      - name: Log in to ECR
+        id: login-ecr
+        uses: aws-actions/amazon-ecr-login@v2
+
+      - name: Build and push backend image
+        run: |
+          docker build -t "${{ steps.login-ecr.outputs.registry }}/substack-backend:latest" -f Dockerfile .
+          docker push "${{ steps.login-ecr.outputs.registry }}/substack-backend:latest"
+
+      - name: Build and push frontend image
+        run: |
+          docker build -t "${{ steps.login-ecr.outputs.registry }}/substack-frontend:latest" -f frontend/Dockerfile .
+          docker push "${{ steps.login-ecr.outputs.registry }}/substack-frontend:latest"
+
+  # ---------------------------------------------------------------------------
+  # Only runs after both images are confirmed pushed (needs:) -- never restarts
+  # the live stack against a partially-pushed or still-building image.
+  # ---------------------------------------------------------------------------
+  deploy:
+    name: Deploy to EC2
+    needs: build-and-push
+    runs-on: ubuntu-latest
+    steps:
+      - name: SSH in, pull latest code + images, restart
+        uses: appleboy/ssh-action@v1.0.3
+        with:
+          host: ${{ secrets.EC2_HOST }}
+          username: ec2-user
+          key: ${{ secrets.EC2_SSH_KEY }}
+          script: |
+            set -e
+            cd ~/substack-newsletters-search-system
+            git pull
+            ACCOUNT_ID=$(aws sts get-caller-identity --query Account --output text)
+            aws ecr get-login-password --region us-west-2 | docker login --username AWS --password-stdin "$ACCOUNT_ID.dkr.ecr.us-west-2.amazonaws.com"
+            docker compose pull
+            docker compose up -d
+            docker image prune -f
