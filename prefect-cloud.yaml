@@ -1,0 +1,59 @@
+# Prefect Cloud deployments -- deployed via `make deploy-cloud-flows`
+# (= `prefect deploy --prefect-file prefect-cloud.yaml`).
+#
+# Both deployments target the "substack-managed-pool" work pool (type prefect:managed) --
+# Prefect Cloud's own serverless execution. No worker to run ourselves: Prefect spins up a
+# temporary container per run, using the pull steps below to fetch fresh code and install
+# dependencies, then tears it down. Chosen specifically to avoid adding a persistent worker
+# process to the EC2 instance, which is already tight on 1 GiB RAM.
+#
+# Credentials are never written here as plain values -- each `{{ prefect.blocks.secret.<name> }}`
+# reference resolves at run time to a Prefect Cloud Secret block (created via the UI: workspace ->
+# Blocks -> "+ Add Block" -> Secret). See DEPLOYMENT_CHECKLIST.md Stage 3 for the exact block
+# names expected here.
+#
+# Both flows read config via src/config.py::settings, which falls back to non-functional
+# defaults (e.g. Supabase host "localhost", Qdrant url "") if these env vars are absent --
+# there is no loud failure if a secret is missing, just a silently broken run. Only the values
+# that actually differ from those defaults need to be set at all.
+
+pull: &pull_steps
+  - prefect.deployments.steps.git_clone:
+      id: pull_step
+      repository: https://github.com/Ankur-Yadav09/substack-newsletters-search-system.git
+      branch: main
+  - prefect.deployments.steps.run_shell_script:
+      id: install_step
+      script: pip install .
+      directory: "{{ pull_step.directory }}"
+
+deployments:
+  - name: rss-ingest-weekly
+    entrypoint: src/pipelines/flows/rss_ingestion_flow.py:rss_ingest_flow
+    work_pool:
+      name: substack-managed-pool
+      job_variables:
+        env:
+          SUPABASE_DB__HOST: "{{ prefect.blocks.secret.supabase-db-host }}"
+          SUPABASE_DB__USER: "{{ prefect.blocks.secret.supabase-db-user }}"
+          SUPABASE_DB__PASSWORD: "{{ prefect.blocks.secret.supabase-db-password }}"
+    schedule:
+      cron: "0 3 * * 0"
+      timezone: "UTC"
+    pull: *pull_steps
+
+  - name: embeddings-ingest-weekly
+    entrypoint: src/pipelines/flows/embeddings_ingestion_flow.py:qdrant_ingest_flow
+    work_pool:
+      name: substack-managed-pool
+      job_variables:
+        env:
+          SUPABASE_DB__HOST: "{{ prefect.blocks.secret.supabase-db-host }}"
+          SUPABASE_DB__USER: "{{ prefect.blocks.secret.supabase-db-user }}"
+          SUPABASE_DB__PASSWORD: "{{ prefect.blocks.secret.supabase-db-password }}"
+          QDRANT__URL: "{{ prefect.blocks.secret.qdrant-url }}"
+          QDRANT__API_KEY: "{{ prefect.blocks.secret.qdrant-api-key }}"
+    schedule:
+      cron: "0 6 * * 0"
+      timezone: "UTC"
+    pull: *pull_steps
